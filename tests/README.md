@@ -52,10 +52,22 @@ It then holds Power: stock powers the guest off (`poweroff -f`), and the
 harness powers it on in finally; the boot layer starts the package again.
 This does not model a Wi-Fi radio, kernel suspend or physical cold boot.
 
+`python3 scripts/integration.py --offline` powers the guest on with the
+emulator's `NETWORK=isolated`: its own network namespace with only loopback, a
+player whose Wi-Fi is not set up or out of reach. Inside that namespace
+(`offline_guest.py`) it checks that there is no eth/wlan, that stock plays the
+prepared track locally (Play from the button, PCM matching the source), that the
+gateway the boot layer started serves its page and manager and refuses stock's
+routes within 4.5 s (WS 503, catalog 502) while playback continues. The boot
+layer then confirms the gateway after its 180 s with no network, a wlan0
+address arrives as a kernel event, stock binds its listeners, and an explicit new
+connection reads identity, firmware, the paused track and the catalog through
+the same gateway process. The online boot and the paused fixture are restored in
+finally. This is not a Wi-Fi radio, an address change during a connection or mDNS.
+
 The combined images' `--idle` (a container-side observer of stock's power
-request) and `--offline` (a private network namespace) scenarios went with
-their guest stack; stock-init guests serve stock's power-off themselves, and the
-offline boot is to return with the emulator's `NETWORK=isolated`.
+request) went with their guest stack: stock-init guests serve stock's
+power-off themselves.
 
 HTTP regressions cover a shared request deadline (including dripping fixed-length
 and chunked bodies), one catalog admission, concurrent health/WS responsiveness,

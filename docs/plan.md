@@ -235,9 +235,21 @@ started as the package under `disc-boot`, the integration checks on it.
   adds three threads); the worker counts stay an open item below.
 - [ ] The two-package acceptance with diskOS's UI (snowsky-disc-boot,
   stage 3).
-- [ ] The boot without a network on the guest, with the emulator's
-  `NETWORK=isolated` (the combined images' offline scenario used a private
-  namespace of its own).
+- [x] The boot without a network on the guest (2026-10-03):
+  `integration.py --offline` powers the guest on with the emulator's
+  `NETWORK=isolated` (`emulator.py power on --network isolated`, through
+  snowsky-disc-boot's `guest.py`) and checks inside its namespace: no
+  eth/wlan and no stock listeners; the gateway's page (302 to the manager,
+  no app on the card) and manager (200, the boot layer's package in
+  `/api/update`); stock playing the prepared track locally (1,044,288 PCM
+  bytes matching the source) while the gateway refuses stock's routes (WS
+  503 in 3.03 s, catalog 502 at once); the boot layer confirming the gateway
+  after its 180 s with no network; then a wlan0 address (192.0.2.2/24)
+  arriving, stock binding 12100 and 12103, and an explicit new connection
+  reading identity 0306, firmware 257, the paused track and the catalog
+  through the same gateway process. Online boot and fixture restored in
+  finally. Not covered: a Wi-Fi radio, an address change during a
+  connection, mDNS.
 
 ## Carried over
 

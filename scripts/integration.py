@@ -14,6 +14,7 @@ from firmware_profile import state_profile, require_scenario
 ROOT=Path(__file__).resolve().parent.parent
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--lifecycle',action='store_true',help='Include two-minute session and deliberate stock loss/reboot')
+parser.add_argument('--offline',action='store_true',help='Boot the guest without a network (NETWORK=isolated): local play, the gateway serving and confirmed, then an address arriving')
 parser.add_argument('--transitions',action='store_true',help='Include isolated cable loss, display sleep/wake and explicit guest Power')
 parser.add_argument('--soak',action='store_true',help='Ten-minute native read/reconnect resource acceptance with short local Play/Pause pulses')
 parser.add_argument('--gateway',action='store_true',help='Publish a catalog release on the disposable card and drive guarded mutations, upload and scan against stock')
@@ -31,7 +32,7 @@ state=json.loads((ROOT/'work/guest.json').read_text())
 profile=state_profile(state)
 for scenario in ('smoke', 'coexistence', 'handover'):
     require_scenario(profile, scenario)
-for scenario in ('lifecycle', 'transitions', 'soak'):
+for scenario in ('lifecycle', 'transitions', 'offline', 'soak'):
     if getattr(args, scenario):require_scenario(profile, scenario)
 if args.gateway or args.history or args.store or args.trash or args.audio or args.about or args.cue or args.m3u or args.queue_research or args.lists:require_scenario(profile, 'smoke')
 container=state['id']+'-emu'
@@ -142,6 +143,8 @@ if args.soak:
         raise
     finally:
         subprocess.run(['docker','cp',container+':/work/disc-soak.json',str(ROOT/'work/soak.json')],check=False)
+if args.offline:
+    subprocess.run([sys.executable,str(ROOT/'tests/integration/offline.py')],check=True)
 if args.transitions:
     subprocess.run([sys.executable,str(ROOT/'tests/integration/transitions.py')],check=True)
 if args.lifecycle:

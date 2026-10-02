@@ -175,7 +175,7 @@ numbers, so the gateway's own authorities hold. Open
 python3 scripts/emulator.py install [--package <zip>]   # another package: off, stage, on with Play
 python3 scripts/emulator.py wait [--confirmed]          # ready, or confirmed (180 s after ready)
 python3 scripts/emulator.py restart-service             # the process ends; boot starts it again
-python3 scripts/emulator.py power on|reboot|off|cut [--unsynced] [--hold play]
+python3 scripts/emulator.py power on|reboot|off|cut [--unsynced] [--hold play] [--network isolated]
 python3 scripts/emulator.py status | down
 ```
 
@@ -184,7 +184,7 @@ The checks run against that guest. Disconnect the browser first:
 ```sh
 python3 scripts/integration.py             # media prepared, native smoke, coexistence, handover
 python3 scripts/integration.py --gateway   # also --history --store --trash --audio --about --cue --lists
-python3 scripts/integration.py --lifecycle # also --transitions --soak; research: --m3u --queue-research
+python3 scripts/integration.py --lifecycle # also --transitions --offline --soak; research: --m3u --queue-research
 python3 tests/integration/manager_guest.py # apps, room, the server's update, activation and rollback
 python3 scripts/test-mips.py               # the conformance contract against build/mips in the guest's root
 ```
@@ -201,8 +201,8 @@ by a guest-side supervisor, the card switch, the image's copy of the page, a
 padded card and a battery overlay) went with them; the emulator now provides
 what it worked around (snowsky-disc-qemu
 `docs/development/emulator-depth-handoff.md`). Its history is in
-snowsky-disc-web. Not carried over yet: the boot without a network
-(`NETWORK=isolated` replaces its private namespace).
+snowsky-disc-web. The boot without a network now uses the emulator's
+`NETWORK=isolated` instead of a private namespace of its own.
 
 ## Scope and evidence
 

@@ -15,7 +15,7 @@ hold; this repository is mounted at /platform for the checks.
   install [--package ZIP]       power off, stage, power on holding Play, wait until ready
   wait [--confirmed]            the service ready (or confirmed: 180 s after ready)
   restart-service               end the gateway's process; boot starts it again, as after a crash
-  power on|reboot|off|cut [--unsynced]|status [--hold KEYS]
+  power on|reboot|off|cut [--unsynced]|status [--hold KEYS] [--network isolated]
   run COMMAND...                in the container
   status | down
 
@@ -119,6 +119,7 @@ def main():
     o.add_argument('event', choices=['on', 'reboot', 'off', 'cut', 'status'])
     o.add_argument('--unsynced', action='store_true')
     o.add_argument('--hold', default='')
+    o.add_argument('--network', choices=['shared', 'isolated'], default='shared')
     r = sub.add_parser('run')
     r.add_argument('command', nargs=argparse.REMAINDER)
     sub.add_parser('status')
@@ -145,7 +146,7 @@ def main():
         print(json.dumps(wait(args.confirmed), indent=2))
     elif args.action == 'power':
         extra = ['--unsynced'] if args.unsynced else []
-        guest('power', args.event, '--hold', args.hold, *extra)
+        guest('power', args.event, '--hold', args.hold, '--network', args.network, *extra)
         if args.event in ('on', 'reboot'):
             print(json.dumps(wait()['service'], indent=2))
     elif args.action == 'run':
