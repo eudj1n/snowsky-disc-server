@@ -1,0 +1,26 @@
+:root { --ink: #1d1f1a; --muted: #5d6157; --line: #d9dbd2; --bg: #f7f7f2; --raised: #ffffff; --accent: #c45a32; --bad: #a3271b; }
+@media (prefers-color-scheme: dark) {
+  :root { --ink: #ecece6; --muted: #a8aba1; --line: #3a3d36; --bg: #171814; --raised: #22241f; --accent: #e07a52; --bad: #ff8a7a; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 720px; margin: 0 auto; padding: 32px 16px 64px; }
+h1 { margin: 0 0 4px; font-size: 28px; }
+h2 { margin: 32px 0 8px; font-size: 18px; }
+.muted { color: var(--muted); margin: 0 0 12px; font-size: 14px; }
+ul { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+li .name { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+li .version { color: var(--muted); font-size: 14px; }
+li .mark { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--accent); }
+li .actions { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+a { color: var(--accent); }
+button { font: inherit; font-size: 14px; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--raised); color: var(--ink); cursor: pointer; }
+button:disabled { opacity: .5; cursor: default; }
+input[type=text], input:not([type]) { font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--raised); color: var(--ink); width: 100%; max-width: 320px; }
+.check { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 14px; color: var(--muted); }
+dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 16px; margin: 0; font-size: 14px; }
+dt { color: var(--muted); }
+dd { margin: 0; overflow-wrap: anywhere; }
+#status { min-height: 1.5em; margin-top: 24px; }
+#status.bad { color: var(--bad); }

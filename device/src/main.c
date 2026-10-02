@@ -3,6 +3,7 @@
 #include "civetweb.h"
 #include "framing.h"
 #include "webroot.h"
+#include "settings.h"
 #include "catalog.h"
 #include "data.h"
 #include "media.h"
@@ -15,6 +16,7 @@
 #include "origins.h"
 #include "log.h"
 #include "jsonutil.h"
+#include "manager_assets.h"
 #include <arpa/inet.h>
 #include <ctype.h>
 #include <fcntl.h>
@@ -63,6 +65,11 @@ typedef struct {
      * creation tells boot the service listens, and the folder of boot's status
      * files (boot.json, service.json) the diagnostics show. */
     const char *ready_file, *boot_status;
+    /* The application manager (owner, 2026-10-02): its own listener and origin; the settings file
+     * (ports, the app served at "/") as last read or written, guarded by lock. */
+    int manager_port;
+    const char *manager_authority, *settings_file;
+    disc_settings settings;
     /* The reviewed catalogs (combined-009): the image's (catalog_dir), the
      * card's queries.json and store.json (card_catalog_dir) and, on the
      * engineering image only, the card's commands.json (card_commands). */
@@ -287,20 +294,21 @@ static int accepts_gzip(const struct mg_connection *c) {
     }
     return 0;
 }
-static int allowed(const struct mg_connection *c, server *s) {
-    note_cross_origin(c, s);
+/* The Host and Origin a listener admits: its authority, or the player's LAN address or mDNS name
+ * with its port; a listed hosted origin only where cross is set (never the manager's). */
+static int allowed_for(const struct mg_connection *c, server *s, const char *authority, int listener_port, int cross) {
     const char *h = mg_get_header(c, "Host"), *o = mg_get_header(c, "Origin");
     if (header_count(c, "Host") != 1 || !h || header_count(c, "Origin") > 1) return 0;
     char origin[160];
-    if (!strcmp(h, s->authority)) {
+    if (!strcmp(h, authority)) {
         snprintf(origin, sizeof(origin), "http://%s", h);
-        return (!o || !strcmp(o, origin) || cross_origin()) ? 1 : 0;
+        return (!o || !strcmp(o, origin) || (cross && cross_origin())) ? 1 : 0;
     }
     /* The Wi-Fi listener is on by default (combined-008): a LAN Host is the
      * player's address or its mDNS name with the service port; every change
      * still needs the player's serial number. */
     const char *colon = strrchr(h, ':');
-    char port[8]; snprintf(port, sizeof(port), "%d", s->port);
+    char port[8]; snprintf(port, sizeof(port), "%d", listener_port);
     if (!colon || strlen(h) > 140 || strcmp(colon + 1, port)) return 0;
     size_t n = (size_t)(colon - h);
     /* The player's own mDNS name (stock publishes ingenic.local; --mdns-name
@@ -310,13 +318,17 @@ static int allowed(const struct mg_connection *c, server *s) {
     if (n > 6 && !strncasecmp(colon - 6, ".local", 6)) {
         if (!s->mdns_name || n - 6 != strlen(s->mdns_name) || strncasecmp(h, s->mdns_name, n - 6)) return 0;
         snprintf(origin, sizeof(origin), "http://%s", h);
-        return (!o || !strcmp(o, origin) || cross_origin()) ? 2 : 0;
+        return (!o || !strcmp(o, origin) || (cross && cross_origin())) ? 2 : 0;
     }
     if (!n || n >= INET_ADDRSTRLEN) return 0;
     char ip[INET_ADDRSTRLEN]; memcpy(ip, h, n); ip[n] = 0;
     if (!local_address(ip)) return 0;
     snprintf(origin, sizeof(origin), "http://%s", h);
-    return (!o || !strcmp(o, origin) || cross_origin()) ? 2 : 0;
+    return (!o || !strcmp(o, origin) || (cross && cross_origin())) ? 2 : 0;
+}
+static int allowed(const struct mg_connection *c, server *s) {
+    note_cross_origin(c, s);
+    return allowed_for(c, s, s->authority, s->port, 1);
 }
 static int bodyless(const struct mg_connection *c) {
     const struct mg_request_info *r = mg_get_request_info(c);
@@ -1893,18 +1905,30 @@ static void app_version(const disc_webroot *from, const char *app, disc_buffer *
     if (ok) disc_buffer_string(b, version, strlen(version));
     else disc_buffer_text(b, "null");
 }
-/* The default app, from the card's Apps folder (apps live only on the card). */
-static const disc_webroot *default_app(server *s, const char **app) {
+/* The app served at "/" (owner, 2026-10-02): the one chosen in the manager while it is installed,
+ * else the only app installed; none when there are several and no choice. */
+typedef struct { int count; char first[DISC_APP_NAME_MAX + 1]; } apps_count;
+static void count_app(void *arg, const char *app) {
+    apps_count *n = arg;
+    if (!n->count++) snprintf(n->first, sizeof(n->first), "%s", app);
+}
+static int effective_default(server *s, char out[DISC_APP_NAME_MAX + 1]) {
     disc_web_asset asset;
-    if (disc_app_open(&s->webroot, DISC_DEFAULT_APP, "", 0, &asset)) { close(asset.fd); *app = DISC_DEFAULT_APP; return &s->webroot; }
-    *app = NULL;
-    return NULL;
+    pthread_mutex_lock(&s->lock);
+    snprintf(out, DISC_APP_NAME_MAX + 1, "%s", s->settings.default_app);
+    pthread_mutex_unlock(&s->lock);
+    if (out[0] && disc_app_open(&s->webroot, out, "", 0, &asset)) { close(asset.fd); return 1; }
+    apps_count n = {0};
+    disc_apps_list(&s->webroot, count_app, &n);
+    if (n.count == 1) { snprintf(out, DISC_APP_NAME_MAX + 1, "%s", n.first); return 1; }
+    out[0] = 0;
+    return 0;
 }
 static int about_route(struct mg_connection *c, server *s) {
     static const char *const states[] = {"ok", "absent", "away", "newer", "failed"};
     disc_buffer b = {0};
-    const char *app = NULL;
-    const disc_webroot *page = default_app(s, &app);
+    char app[DISC_APP_NAME_MAX + 1];
+    const disc_webroot *page = effective_default(s, app) ? &s->webroot : NULL;
     disc_buffer_text(&b, "{\"service\":{\"name\":\"disc-native-probe\",\"version\":\"" DISC_SERVICE_VERSION "\",\"build\":");
     disc_buffer_string(&b, DISC_BUILD, strlen(DISC_BUILD));
     disc_buffer_text(&b, ",\"api\":1,\"uptime\":");
@@ -1914,10 +1938,15 @@ static int about_route(struct mg_connection *c, server *s) {
     disc_buffer_text(&b, s->boot_status ? ",\"supervised\":true},\"image\":null" : ",\"supervised\":false},\"image\":null");
     disc_buffer_text(&b, ",\"boot\":");
     about_boot(s, &b);
+    disc_buffer_text(&b, ",\"ports\":{\"apps\":");
+    disc_buffer_int(&b, s->port);
+    disc_buffer_text(&b, ",\"manager\":");
+    disc_buffer_int(&b, s->manager_port);
+    disc_buffer_text(&b, "}");
     disc_buffer_text(&b, ",\"page\":{\"source\":");
     disc_buffer_text(&b, page ? "\"card\"" : "null");
     disc_buffer_text(&b, ",\"app\":");
-    if (page) disc_buffer_string(&b, DISC_DEFAULT_APP, strlen(DISC_DEFAULT_APP));
+    if (page) disc_buffer_string(&b, app, strlen(app));
     else disc_buffer_text(&b, "null");
     disc_buffer_text(&b, ",\"version\":");
     if (page) app_version(page, app, &b);
@@ -2008,20 +2037,32 @@ static int contract_route(struct mg_connection *c, server *s, const char *name) 
     free(json);
     return 200;
 }
-typedef struct { disc_buffer *b; const disc_webroot *root; int count; } apps_listing;
+typedef struct { disc_buffer *b; const disc_webroot *root; int count; const char *effective; } apps_listing;
 static void list_app(void *arg, const char *app) {
     apps_listing *l = arg;
     disc_buffer_text(l->b, l->count++ ? ",{\"name\":" : "{\"name\":");
     disc_buffer_string(l->b, app, strlen(app));
     disc_buffer_text(l->b, ",\"version\":");
     app_version(l->root, app, l->b);
-    disc_buffer_text(l->b, strcmp(app, DISC_DEFAULT_APP) ? ",\"default\":false}" : ",\"default\":true}");
+    disc_buffer_text(l->b, strcmp(app, l->effective) ? ",\"default\":false}" : ",\"default\":true}");
 }
-/* GET /api/apps (combined-009): the card's apps, each at /apps/<name>/ (the default also at /). */
+/* GET /api/apps (combined-009): the card's apps, each at /apps/<name>/; "default" is the one
+ * served at / (null without one), "chosen" what the manager set (owner, 2026-10-02). */
 static int apps_route(struct mg_connection *c, server *s) {
     disc_buffer b = {0};
-    apps_listing l = {.b = &b, .root = &s->webroot};
-    disc_buffer_text(&b, "{\"default\":\"" DISC_DEFAULT_APP "\",\"apps\":[");
+    char effective[DISC_APP_NAME_MAX + 1], chosen[DISC_APP_NAME_MAX + 1];
+    effective_default(s, effective);
+    pthread_mutex_lock(&s->lock);
+    snprintf(chosen, sizeof(chosen), "%s", s->settings.default_app);
+    pthread_mutex_unlock(&s->lock);
+    apps_listing l = {.b = &b, .root = &s->webroot, .effective = effective};
+    disc_buffer_text(&b, "{\"default\":");
+    if (effective[0]) disc_buffer_string(&b, effective, strlen(effective));
+    else disc_buffer_text(&b, "null");
+    disc_buffer_text(&b, ",\"chosen\":");
+    if (chosen[0]) disc_buffer_string(&b, chosen, strlen(chosen));
+    else disc_buffer_text(&b, "null");
+    disc_buffer_text(&b, ",\"apps\":[");
     disc_apps_list(&s->webroot, list_app, &l);
     disc_buffer_text(&b, "],\"image\":false}");
     int code = b.overflow ? error(c, 500, "Apps unavailable\n") : response(c, 200, "application/json; charset=utf-8", b.data, b.used);
@@ -2043,6 +2084,14 @@ static int preflight(struct mg_connection *c) {
                  "%s%s%sAccess-Control-Max-Age: 600\r\n\r\n",
               origin, asked ? "Access-Control-Allow-Headers: " : "", asked ? asked : "", asked ? "\r\n" : "");
     return 204;
+}
+/* "/" with no app to serve: the manager, on the host the request named (admitted by allowed()). */
+static int manager_redirect(struct mg_connection *c, server *s) {
+    const char *h = mg_get_header(c, "Host"), *colon = h ? strrchr(h, ':') : NULL;
+    if (!h || !colon || colon - h > 120) return error(c, 404, "No app is installed\n");
+    mg_printf(c, "HTTP/1.1 302 Found\r\nLocation: http://%.*s:%d/\r\nContent-Length: 0\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n",
+              (int)(colon - h), h, s->manager_port);
+    return 302;
 }
 static int http_request(struct mg_connection *c, void *arg) {
     server *s = arg;
@@ -2094,9 +2143,15 @@ static int http_request(struct mg_connection *c, void *arg) {
     /* Apps (combined-009): "/apps/<App>/<path>" is that app's, anything else the default app's,
      * from the card's Apps folder or else, for the default app, the image's copy. */
     char app[DISC_APP_NAME_MAX * 3 + 1];
-    snprintf(app, sizeof(app), "%s", DISC_DEFAULT_APP);
+    app[0] = 0;
     const char *path = uri + 1;
     int named = !strncmp(uri, "/apps/", 6);
+    if (!named) {
+        char chosen[DISC_APP_NAME_MAX + 1];
+        /* Without an app for "/" the manager is the place to install or choose one. */
+        if (!effective_default(s, chosen)) return strcmp(uri, "/") ? error(c, 404, "Not found\n") : manager_redirect(c, s);
+        snprintf(app, sizeof(app), "%s", chosen);
+    }
     if (named) {
         /* CivetWeb hands over the path already URL-decoded (local_uri_raw). */
         const char *name = uri + 6, *slash = strchr(name, '/');
@@ -2123,14 +2178,99 @@ static int http_request(struct mg_connection *c, void *arg) {
         app_policy(from, from_app, policy, sizeof(policy));
         return web_asset_response(c, from, &asset, head, policy);
     }
-    /* Apps live only on the card; without the default app / has nothing to serve. */
-    const char *present;
-    if (!named && !strcmp(uri, "/") && !default_app(s, &present)) return error(c, 404, "No app is installed\n");
     return error(c, 404, "Not found\n");
+}
+/* The application manager (owner, 2026-10-02): its own listener, port and origin, so no app can
+ * drive it; its page, the diagnostics and the apps' management. Every change needs the player's
+ * serial number, a request ID and pacing, as anywhere. */
+#define DISC_MANAGER_POLICY "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; " \
+                            "frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+#define DISC_MANAGER_BODY_MAX 512
+static int manager_asset(struct mg_connection *c, const char *uri, int head) {
+    for (size_t i = 0; i < sizeof(manager_assets) / sizeof(manager_assets[0]); i++)
+        if (!strcmp(uri, manager_assets[i].path)) {
+            mg_printf(c, "HTTP/1.1 200 OK\r\nContent-Type: %s\r\nContent-Length: %zu\r\nConnection: close\r\nCache-Control: no-store\r\n"
+                         "X-Content-Type-Options: nosniff\r\nReferrer-Policy: no-referrer\r\nContent-Security-Policy: " DISC_MANAGER_POLICY "\r\n\r\n",
+                      manager_assets[i].type, manager_assets[i].size);
+            if (!head) mg_write(c, manager_assets[i].data, manager_assets[i].size);
+            return 200;
+        }
+    return error(c, 404, "Not found\n");
+}
+/* The serial number, a fresh request ID and pacing: what every change through the manager needs. */
+static int manager_mutation(struct mg_connection *c, server *s, const char *pacing) {
+    const struct mg_request_info *r = mg_get_request_info(c);
+    const char *token = mg_get_header(c, "X-Disc-Token"), *request_id = mg_get_header(c, "X-Disc-Request");
+    if (header_count(c, "X-Disc-Token") != 1 || !token || strlen(token) > 64 ||
+        !credential_matches(s, r->remote_addr, token, strlen(token))) return error(c, 403, "Token required\n");
+    if (header_count(c, "X-Disc-Request") != 1 || !request_id || !valid_request_id(request_id, strlen(request_id)))
+        return error(c, 403, "Request ID required\n");
+    if (!remember_request(s, request_id)) return error(c, 409, "Request ID already used\n");
+    pace_class(s, pacing, 250);
+    return 0;
+}
+/* PUT /api/apps/default {"name": "<App>" | null}: the app served at "/", kept in the settings file. */
+static int default_app_route(struct mg_connection *c, server *s) {
+    const struct mg_request_info *r = mg_get_request_info(c);
+    const char *cl = mg_get_header(c, "Content-Length");
+    unsigned length = 0;
+    if (r->query_string) return error(c, 405, "The route takes no query\n");
+    if (mg_get_header(c, "Transfer-Encoding") || header_count(c, "Content-Length") != 1 || !decimal(cl, 0x7fffffff, &length) || !length)
+        return error(c, 411, "A body with its Content-Length is required\n");
+    if (length > DISC_MANAGER_BODY_MAX) return error(c, 413, "Body too large\n");
+    int refused = manager_mutation(c, s, "apps");
+    if (refused) return refused;
+    if (!s->settings_file) return error(c, 409, "No settings file is configured\n");
+    char body[DISC_MANAGER_BODY_MAX + 1], name[DISC_APP_NAME_MAX + 1] = "";
+    size_t used = 0;
+    while (used < length) { int got = mg_read(c, body + used, length - used); if (got <= 0) break; used += (size_t)got; }
+    if (used != length) return error(c, 400, "Incomplete body\n");
+    body[length] = 0;
+    jsmntok_t *t = NULL;
+    int count = disc_json_parse(body, length, &t, 16), i = -1;
+    int ok = count > 0 && t[0].type == JSMN_OBJECT && t[0].size == 1 && (i = disc_json_find(body, t, 0, "name")) > 0;
+    int clear = ok && t[i].type == JSMN_PRIMITIVE && body[t[i].start] == 'n';
+    ok = ok && (clear || (disc_json_string(body, &t[i], name, sizeof(name)) > 0 && disc_app_name_ok(name)));
+    free(t);
+    if (!ok) return error(c, 400, "Expected {\"name\": <an app's name or null>}\n");
+    disc_web_asset asset;
+    if (!clear) {
+        if (!disc_app_open(&s->webroot, name, "", 0, &asset)) return error(c, 404, "No such app\n");
+        close(asset.fd);
+    }
+    pthread_mutex_lock(&s->lock);
+    disc_settings next = s->settings;
+    snprintf(next.default_app, sizeof(next.default_app), "%s", clear ? "" : name);
+    int written = disc_settings_write(s->settings_file, &next) == 0;
+    if (written) s->settings = next;
+    pthread_mutex_unlock(&s->lock);
+    if (!written) return error(c, 500, "The settings could not be written\n");
+    disc_log(clear ? "The default app is no longer chosen\n" : "The default app was chosen\n");
+    return apps_route(c, s);
+}
+static int manager_request(struct mg_connection *c, void *arg) {
+    server *s = arg;
+    request_origin[0] = 0;  /* the manager never answers a cross-origin page */
+    if (!allowed_for(c, s, s->manager_authority, s->manager_port, 0)) return error(c, 403, "Host or Origin rejected\n");
+    const struct mg_request_info *request = mg_get_request_info(c);
+    const char *uri = request->local_uri_raw, *method = request->request_method;
+    if (!uri) return error(c, 404, "Not found\n");
+    if (!strcmp(uri, "/api/apps/default")) return strcmp(method, "PUT") ? error(c, 405, "PUT only\n") : default_app_route(c, s);
+    int head = !strcmp(method, "HEAD");
+    const char *cl = mg_get_header(c, "Content-Length");
+    if ((!head && strcmp(method, "GET")) || (cl && strcmp(cl, "0")) || mg_get_header(c, "Transfer-Encoding") ||
+        (request->query_string && !strncmp(uri, "/api/", 5)))
+        return error(c, 405, "Only bodyless GET or HEAD is supported here; API routes take no query\n");
+    if (!strncmp(uri, "/api/", 5) && head) return error(c, 405, "HEAD is only supported for the manager's page\n");
+    if (!strcmp(uri, "/api/about")) return about_route(c, s);
+    if (!strcmp(uri, "/api/apps")) return apps_route(c, s);
+    if (!strncmp(uri, "/api/", 5)) return error(c, 404, "Not found\n");
+    return manager_asset(c, uri, head);
 }
 static int port_value(const char *v) { char *end; long p = strtol(v, &end, 10); return *v && !*end && p > 0 && p <= 65535 ? (int)p : 0; }
 static int service_main(int argc, char **argv) {
-    server s = {.listen = "127.0.0.1", .authority = "127.0.0.1:7870", .upstream = "127.0.0.1", .port = 7870, .tcp_port = 12100, .http_port = 12103, .lock = PTHREAD_MUTEX_INITIALIZER, .catalog_lock = PTHREAD_MUTEX_INITIALIZER};
+    server s = {.listen = "127.0.0.1", .upstream = "127.0.0.1", .tcp_port = 12100, .http_port = 12103, .lock = PTHREAD_MUTEX_INITIALIZER, .catalog_lock = PTHREAD_MUTEX_INITIALIZER};
+    int port_given = 0, manager_port_given = 0;
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--version")) { puts("disc-native-probe " DISC_SERVICE_VERSION " (" DISC_BUILD ")"); return 0; }
         if (i + 1 >= argc) { disc_log("Option requires a value\n"); return 2; }
@@ -2138,7 +2278,10 @@ static int service_main(int argc, char **argv) {
         if (!strcmp(key, "--listen")) s.listen = v;
         else if (!strcmp(key, "--authority")) s.authority = v;
         else if (!strcmp(key, "--upstream")) s.upstream = v;
-        else if (!strcmp(key, "--port")) s.port = port_value(v);
+        else if (!strcmp(key, "--port")) { s.port = port_value(v); port_given = 1; }
+        else if (!strcmp(key, "--manager-port")) { s.manager_port = port_value(v); manager_port_given = 1; }
+        else if (!strcmp(key, "--manager-authority")) s.manager_authority = v;
+        else if (!strcmp(key, "--settings")) s.settings_file = v;
         else if (!strcmp(key, "--tcp-port")) s.tcp_port = port_value(v);
         else if (!strcmp(key, "--http-port")) s.http_port = port_value(v);
         else if (!strcmp(key, "--apps")) s.webroot.root = v;
@@ -2171,6 +2314,17 @@ static int service_main(int argc, char **argv) {
         else if (!strcmp(key, "--observer-interval-ms")) s.observer_interval_ms = (unsigned)port_value(v);
         else { disc_log("Unknown option: %s\n", key); return 2; }
     }
+    /* Ports: an explicit option, else the settings file, else 7870 and 7871; each authority
+     * follows its port unless given (owner, 2026-10-02). */
+    char settings_problem[160] = "";
+    int settings_read = 0;
+    if (s.settings_file && s.settings_file[0] == '/' && strlen(s.settings_file) <= 240)
+        settings_read = disc_settings_read(s.settings_file, &s.settings, settings_problem, sizeof(settings_problem));
+    if (!port_given) s.port = s.settings.port ? s.settings.port : DISC_DEFAULT_PORT;
+    if (!manager_port_given) s.manager_port = s.settings.manager_port ? s.settings.manager_port : DISC_DEFAULT_MANAGER_PORT;
+    static char authority[32], manager_authority[32];
+    if (!s.authority) { snprintf(authority, sizeof(authority), "127.0.0.1:%d", s.port); s.authority = authority; }
+    if (!s.manager_authority) { snprintf(manager_authority, sizeof(manager_authority), "127.0.0.1:%d", s.manager_port); s.manager_authority = manager_authority; }
     struct in_addr listen_addr;
     if (!s.port || !s.tcp_port || !s.http_port || inet_pton(AF_INET, s.listen, &listen_addr) != 1 || !local_address(s.upstream) || strlen(s.authority) > 120 ||
         (s.commands_profile_sha256 && (strlen(s.commands_profile_sha256) != 64 || strspn(s.commands_profile_sha256, "0123456789abcdef") != 64 || !s.catalog_dir)) ||
@@ -2189,6 +2343,9 @@ static int service_main(int argc, char **argv) {
         (s.lists_dir && (s.lists_dir[0] != '/' || strlen(s.lists_dir) > 240 || !media_root(&s))) ||
         (s.external_lists_dir && (s.external_lists_dir[0] != '/' || strlen(s.external_lists_dir) > 240 || !media_root(&s))) ||
         (s.ready_file && (s.ready_file[0] != '/' || strlen(s.ready_file) > 240)) ||
+        (s.settings_file && (s.settings_file[0] != '/' || strlen(s.settings_file) > 240)) ||
+        !s.manager_port || s.manager_port == s.port || strlen(s.manager_authority) > 120 ||
+        strspn(s.manager_authority, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.:-") != strlen(s.manager_authority) ||
         (s.boot_status && (s.boot_status[0] != '/' || strlen(s.boot_status) > 200)) ||
         (s.mdns_name && (!*s.mdns_name || strlen(s.mdns_name) > 63 || s.mdns_name[0] == '-' ||
                          s.mdns_name[strlen(s.mdns_name) - 1] == '-' ||
@@ -2219,6 +2376,17 @@ static int service_main(int argc, char **argv) {
     if (!ctx) { disc_log("HTTP server startup failed\n"); return 1; }
     mg_set_websocket_handler(ctx, "/api/websocket", ws_connect, ws_ready, ws_data, ws_closed, &s);
     mg_set_request_handler(ctx, "/", http_request, &s);
+    if (settings_read < 0) disc_log("The settings file was refused; the defaults apply (%s)\n", settings_problem);
+    /* The manager's own listener and workers: it answers while the apps' port is busy, and a port it
+     * cannot take leaves the apps' port serving (the diagnostics say so). */
+    char manager_bind[64]; snprintf(manager_bind, sizeof(manager_bind), "%s:%d", s.listen, s.manager_port);
+    const char *manager_options[] = {"listening_ports", manager_bind, "num_threads", "2", "max_request_size", "8192", "request_timeout_ms", "10000",
+                                     "enable_keep_alive", "no", "enable_directory_listing", "no", "access_control_allow_origin", "",
+                                     "access_control_allow_methods", "", "access_control_allow_headers", "", NULL};
+    struct mg_callbacks manager_callbacks = {0};
+    struct mg_context *manager_ctx = mg_start(&manager_callbacks, &s, manager_options);
+    if (manager_ctx) mg_set_request_handler(manager_ctx, "/", manager_request, &s);
+    else disc_log("The manager's port %d could not be taken; the apps' port serves without it\n", s.manager_port);
     disc_database_init(&s.database, s.database_file, card_owned, &s);
     s.trash = (disc_trash){.card = media_root(&s), .folder = s.trash_dir, .database = &s.database,
                            .proc_root = s.proc_root ? s.proc_root : "/proc", .process = s.player_process};
@@ -2247,6 +2415,7 @@ static int service_main(int argc, char **argv) {
         disc_history_poll(history);
     }
     disc_history_stop(history);
+    if (manager_ctx) mg_stop(manager_ctx);
     mg_stop(ctx); mg_exit_library(); pthread_mutex_destroy(&s.lock); return 0;
 }
 

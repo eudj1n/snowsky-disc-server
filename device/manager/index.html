@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>DISC · Apps</title>
+<link rel="stylesheet" href="./manager.css">
+<script type="module" src="./manager.js"></script>
+</head>
+<body>
+<main>
+  <header>
+    <h1 data-text="title">Apps</h1>
+    <p class="muted" id="server"></p>
+  </header>
+  <section aria-labelledby="apps-title">
+    <h2 id="apps-title" data-text="apps">Installed apps</h2>
+    <p class="muted" id="apps-note"></p>
+    <ul id="apps"></ul>
+  </section>
+  <section aria-labelledby="serial-title">
+    <h2 id="serial-title" data-text="serialTitle">Serial number</h2>
+    <p class="muted" data-text="serialHelp">Changes need the player's serial number (Settings → About on the player).</p>
+    <form id="serial-form">
+      <input id="serial" name="serial" autocomplete="off" spellcheck="false" inputmode="text" maxlength="32">
+      <label class="check"><input type="checkbox" id="remember"> <span data-text="remember">Remember on this device</span></label>
+    </form>
+  </section>
+  <section aria-labelledby="boot-title">
+    <h2 id="boot-title" data-text="system">System</h2>
+    <dl id="facts"></dl>
+  </section>
+  <p id="status" role="status" aria-live="polite"></p>
+</main>
+</body>
+</html>

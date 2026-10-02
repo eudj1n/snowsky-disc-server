@@ -25,6 +25,37 @@ the restart log) and the card switch (`.disc/disabled`) are gone with them
 (owner, 2026-10-02); Volume Up at power-on, or the default mode `stock`,
 keeps the service from starting. Their history is in snowsky-disc-web.
 
+## The application manager and the ports
+
+The service listens on two ports (owner, 2026-10-02): the apps' port (7870)
+serves the apps on the card and the API they use; the manager's port (7871)
+serves the application manager, the server's own page, with the
+diagnostics and the apps' management. Another port is another origin, so no
+app can read or drive the manager; the manager admits no cross-origin page
+(no CORS, no preflight) and answers with a strict policy (`script-src
+'self'`, `frame-ancestors 'none'`). Its Host is its authority, the player's
+LAN address or the player's mDNS name with its own port. Every change there
+needs the player's serial number, a fresh request ID and pacing. The manager
+has its own two workers, so it answers while the apps' port is busy; a
+manager port that cannot be taken leaves the apps' port serving (a service
+message says so).
+
+`/` on the apps' port serves the app chosen in the manager while it is
+installed, else the only app installed; with none, or several and no choice,
+it redirects (302) to the manager on the same host. `PUT /api/apps/default`
+(the manager's port) chooses or clears the app.
+
+The settings file (`--settings`, in the package `$DISC_BOOT_DATA/server.env`)
+holds `PORT`, `MANAGER_PORT` and `DEFAULT_APP`: `KEY=VALUE` lines with known
+keys only, read as data and never executed, `#` comment lines; ports
+1024-65535, different from each other and from stock's (12100, 12101,
+12103). A file that breaks a rule is refused whole and the defaults apply,
+with a service message. Ports are read at start; an explicit `--port` or
+`--manager-port` wins over the file, and each authority follows its port
+unless given. The file lives in the package's own data, not on the card,
+because the card is mounted after the service starts on the player.
+`/api/about` names the ports in effect (`ports: {apps, manager}`).
+
 ## Diagnostics
 
 `GET /api/about` (combined-008; bodyless, no query, no credential) answers
@@ -45,7 +76,7 @@ the boot layer),
 combined-009: how many plays could not be written, when, and the last
 reason, "card away", "newer schema", "card full", "input/output" or
 "failed"),"restarts":[] (the combined images' restart log; the boot layer's
-service.json now tells),"log":[{"t","m"}: the newest 32 messages the
+service.json now tells),"ports":{"apps","manager"} (in effect),"log":[{"t","m"}: the newest 32 messages the
 service wrote to standard error]}`. Messages name no credential, track or
 user file (an address locked out of pairing is named). `--version` prints
 the version and the build. Under the boot layer `--ready-file PATH` is

@@ -21,7 +21,7 @@ endif
 all: $(OUT)/disc-service
 $(OUT):
 	mkdir -p $@
-$(OUT)/main.o: src/main.c src/framing.h src/webroot.h src/catalog.h src/data.h src/media.h src/facts.h src/history.h src/database.h src/store.h src/trash.h src/lists.h src/tree.h src/origins.h src/log.h src/jsonutil.h vendor/civetweb/include/civetweb.h | $(OUT)
+$(OUT)/main.o: src/main.c src/settings.h $(OUT)/manager_assets.h src/framing.h src/webroot.h src/catalog.h src/data.h src/media.h src/facts.h src/history.h src/database.h src/store.h src/trash.h src/lists.h src/tree.h src/origins.h src/log.h src/jsonutil.h vendor/civetweb/include/civetweb.h | $(OUT)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
 $(OUT)/catalog.o: src/catalog.c src/catalog.h src/jsonutil.h vendor/jsmn/jsmn.h | $(OUT)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
@@ -53,11 +53,13 @@ $(OUT)/lists.o: src/lists.c src/lists.h src/media.h src/jsonutil.h src/framing.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
 $(OUT)/store.o: src/store.c src/store.h src/database.h src/jsonutil.h src/framing.h vendor/sqlite/sqlite3.h vendor/civetweb/include/civetweb.h | $(OUT)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
+$(OUT)/settings.o: src/settings.c src/settings.h src/webroot.h | $(OUT)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
 $(OUT)/framing.o: src/framing.c src/framing.h | $(OUT)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
 $(OUT)/civetweb.o: vendor/civetweb/src/civetweb.c $(wildcard vendor/civetweb/src/*.inl) vendor/civetweb/include/civetweb.h | $(OUT)
 	$(CC) $(CPPFLAGS) $(filter-out -Werror,$(CFLAGS)) -c $< -o $@
-$(OUT)/disc-service: $(OUT)/main.o $(OUT)/framing.o $(OUT)/webroot.o $(OUT)/media.o $(OUT)/facts.o $(OUT)/history.o $(OUT)/database.o $(OUT)/store.o $(OUT)/trash.o $(OUT)/lists.o $(OUT)/tree.o $(OUT)/origins.o $(OUT)/log.o $(OUT)/catalog.o $(OUT)/jsonutil.o $(OUT)/data.o $(OUT)/sqlite3.o $(OUT)/civetweb.o
+$(OUT)/disc-service: $(OUT)/main.o $(OUT)/settings.o $(OUT)/framing.o $(OUT)/webroot.o $(OUT)/media.o $(OUT)/facts.o $(OUT)/history.o $(OUT)/database.o $(OUT)/store.o $(OUT)/trash.o $(OUT)/lists.o $(OUT)/tree.o $(OUT)/origins.o $(OUT)/log.o $(OUT)/catalog.o $(OUT)/jsonutil.o $(OUT)/data.o $(OUT)/sqlite3.o $(OUT)/civetweb.o
 	$(CC) $(LDFLAGS) $^ $(LDLIBS) -o $@
 $(OUT)/framing-test: tests/framing_test.c src/framing.c src/framing.h | $(OUT)
 	$(CC) $(CPPFLAGS) $(CFLAGS) tests/framing_test.c src/framing.c $(LDFLAGS) -o $@

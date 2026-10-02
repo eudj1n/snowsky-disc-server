@@ -5,7 +5,8 @@ Lays out a package folder (bin/disc-service, bin/run, catalog/), describes and
 zips it with snowsky-disc-boot's scripts/package.py (found through
 DISC_BOOT_DIR, by default the sibling checkout). bin/run starts the gateway with
 the arguments the combined images' boot hook gave it, computed from the same
-reviewed profiles, with the slot, the card and the run folder from the boot
+reviewed profiles, with the slot, the card, the run folder and the settings
+file ($DISC_BOOT_DATA/server.env: ports, the app served at "/") from the boot
 layer's environment. Boot supervises the package, so there is no --supervise,
 no image identity file and no card switch (its modes replace .disc/disabled).
 """
@@ -46,10 +47,16 @@ def boot_module(name, relative):
     return module
 
 
-def service_args(profile, engineering, port=7870):
-    """The gateway's arguments under the boot layer, as the combined images' hook rendered them."""
+def service_args(profile, engineering, port=None, manager_port=None):
+    """The gateway's arguments under the boot layer, as the combined images' hook rendered them. The ports
+    come from the settings file (defaults 7870 and 7871); only test packages fix them here."""
     os_args = os_service_args(load_os_profile(profile))
-    args = ['--listen', '0.0.0.0', '--port', str(port), '--authority', f'127.0.0.1:{port}', '--upstream', '127.0.0.1',
+    ports = []
+    if port:
+        ports += ['--port', str(port), '--authority', f'127.0.0.1:{port}']
+    if manager_port:
+        ports += ['--manager-port', str(manager_port)]
+    args = ['--listen', '0.0.0.0', *ports, '--upstream', '127.0.0.1', '--settings', '$DISC_BOOT_DATA/server.env',
             '--ready-file', '$DISC_BOOT_RUN/ready', '--boot-status', '$DISC_BOOT_STATUS',
             '--apps', apps(CARD), '--sd-mount', CARD, '--sd-source', load_usb_profile(profile)['sd_source'],
             '--commands-profile-sha256', fingerprint(profile),
@@ -89,7 +96,7 @@ def default_version():
     return f'{datetime.date.today():%Y.%m.%d}-{commit}' + ('+changes' if dirty else '')
 
 
-def build(binary, output, version=None, engineering=False, profile_version=None, arch=None, port=7870):
+def build(binary, output, version=None, engineering=False, profile_version=None, arch=None, port=None, manager_port=None):
     package = boot_module('boot_package', 'scripts/package.py')
     arch = arch or package.ARCH
     profile = load_profile(profile_version)
@@ -107,7 +114,7 @@ def build(binary, output, version=None, engineering=False, profile_version=None,
     (folder/'catalog').mkdir()
     shutil.copyfile(binary, folder/'bin/disc-service')
     (folder/'bin/disc-service').chmod(0o755)
-    (folder/'bin/run').write_text(start_script(service_args(profile, engineering, port)))
+    (folder/'bin/run').write_text(start_script(service_args(profile, engineering, port, manager_port)))
     (folder/'bin/run').chmod(0o755)
     for name, data in app_bundle.catalog_files(profile).items():
         (folder/'catalog'/name).write_bytes(data)
@@ -129,9 +136,11 @@ def main():
     p.add_argument('--engineering', action='store_true', help="The engineering variant: the card's commands and raw mode")
     p.add_argument('--profile', help='Reviewed firmware profile; defaults to the active one')
     p.add_argument('--arch', help='Only for test packages (default: the player)')
-    p.add_argument('--port', type=int, default=7870, help='Only for test packages')
+    p.add_argument('--port', type=int, help='Only for test packages (default: the settings file, else 7870)')
+    p.add_argument('--manager-port', type=int, help='Only for test packages (default: the settings file, else 7871)')
     args = p.parse_args()
-    print(json.dumps(build(args.binary, args.output, args.version, args.engineering, args.profile, args.arch, args.port), indent=2))
+    print(json.dumps(build(args.binary, args.output, args.version, args.engineering, args.profile, args.arch, args.port,
+                           args.manager_port), indent=2))
 
 
 if __name__ == '__main__':

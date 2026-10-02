@@ -7,9 +7,11 @@ build_id="$(git rev-parse --short=12 HEAD 2>/dev/null || echo unknown)"
 git diff --quiet HEAD -- device 2>/dev/null || build_id="$build_id+changes"
 case "$mode" in
   host)
+    python3 scripts/embed-manager.py build/host/manager_assets.h
     make -C device OUT=../build/host DISC_BUILD="$build_id" all test
     ;;
   mips)
+    python3 scripts/embed-manager.py build/mips/manager_assets.h
     # The player kernel (Linux 4.4.94) runs FP branch delay slots from a stack
     # trampoline when it emulates the FPU; hard-float output crashed on the first
     # WebSocket. Refuse any toolchain whose executables are not soft-float.

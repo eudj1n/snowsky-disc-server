@@ -62,7 +62,7 @@ paths:
       description: Bodyless GET without a query. Versions and the source commit, the image's identity, which release serves the page, the card, the database facts, the supervisor's restarts and the newest service messages; no credential, track or user file.
       responses:
         '200':
-          description: "{service:{name, version, build, api, uptime, supervised (true under the boot layer)}, image (always null), boot:{decision, service} (the boot layer's boot.json and service.json, or null outside it), page:{source, release}, card:{owned}, database:{state, schema, bytes, plays, records, trash, writes:{failed, lastFailure, lastSuccess, reason}}, restarts:[] (always empty), log:[{t, m}]}"
+          description: "{service:{name, version, build, api, uptime, supervised (true under the boot layer)}, image (always null), boot:{decision, service} (the boot layer's boot.json and service.json, or null outside it), ports:{apps, manager} (in effect), page:{source, release}, card:{owned}, database:{state, schema, bytes, plays, records, trash, writes:{failed, lastFailure, lastSuccess, reason}}, restarts:[] (always empty), log:[{t, m}]}"
           content:
             application/json:
               schema: { type: object, required: [service, image, page, card, database, restarts, log] }
@@ -553,9 +553,27 @@ paths:
   /api/apps:
     get:
       tags: [static]
-      summary: The card's apps (combined-009)
+      summary: The card's apps (combined-009); on the apps' port and on the manager's
+      description: |
+        `default` is the app served at `/`: the one chosen in the manager while it
+        is installed, else the only app installed, else null (then `/` redirects
+        to the manager). `chosen` is the manager's choice (null without one).
       responses:
-        '200': { description: "{default, apps:[{name, version, default}], image}" }
+        '200': { description: "{default, chosen, apps:[{name, version, default}], image: false}" }
+  /api/apps/default:
+    put:
+      tags: [manager]
+      summary: Choose the app served at / (the manager's port only)
+      description: |
+        Body `{"name": "<an installed app>"}` or `{"name": null}`; kept in the
+        settings file (`DEFAULT_APP`). Needs X-Disc-Token (the serial number) and
+        a fresh X-Disc-Request. The apps' port answers 405.
+      responses:
+        '200': { description: The apps listing, as GET /api/apps }
+        '400': { description: Not {"name": <name or null>} }
+        '403': { description: Serial number or request ID missing, or another origin }
+        '404': { description: No such app installed }
+        '409': { description: No settings file is configured }
   /api/contract/{name}:
     get:
       tags: [static]

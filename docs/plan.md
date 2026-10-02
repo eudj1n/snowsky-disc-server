@@ -108,6 +108,26 @@ started as the package under `disc-boot`, the integration checks on it.
   guest checks install on the card. Evidence: `test_gateway` (apps only on
   the card, the old options refused), `test_webroot`, `test_service`; the
   guest wrapper moves to the package in step 4.
+- [x] Step 2a, the manager's listener (2026-10-02): a second CivetWeb
+  context on the manager's port with two workers and its own Host and Origin
+  rule (its authority, the LAN address or the mDNS name with its port; no
+  cross-origin page, no preflight), the embedded page (`device/manager/`,
+  `scripts/embed-manager.py`; strict policy: `script-src 'self'`,
+  `frame-ancestors 'none'`), `/api/about` and `/api/apps` there, and
+  `PUT /api/apps/default` (serial number, request ID, pacing). `/` on the
+  apps' port serves the chosen app while it is installed, else the only one,
+  else redirects to the manager. The settings file is the package's own
+  `$DISC_BOOT_DATA/server.env`, not the card's `.disc/` as first proposed:
+  on the player the card is mounted after the service starts (the emulator's
+  stock-init evidence), so ports kept there would never apply at boot. Keys
+  `PORT`, `MANAGER_PORT`, `DEFAULT_APP`, strict and never executed; an
+  explicit option wins; each authority follows its port. A manager port that
+  cannot be taken leaves the apps' port serving. The package's start script
+  passes `--settings` and no ports. Evidence: `test_gateway` (the manager's
+  own port and origin, the default app with the redirect, the choice kept
+  across a restart, the strict file, a taken manager port), `test_webroot`,
+  `test_service`, `test_openapi`, `test_package_build` (the package serves
+  its manager under `disc-boot`).
 - [ ] Guest acceptance of the package on the boot image, once the emulator
   boots it (snowsky-disc-boot, stage 2), then the two-package acceptance with
   diskOS's UI.

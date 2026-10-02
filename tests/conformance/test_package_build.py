@@ -76,7 +76,7 @@ class PackageBuildTests(unittest.TestCase):
         self.assertTrue(script.startswith('#!/bin/sh\n'))
         self.assertIn('exec "$DISC_BOOT_SLOT/bin/disc-service"', script)
         options = self.options(script)
-        self.assertEqual(options, ['--listen', '--port', '--authority', '--upstream', '--ready-file', '--boot-status', '--apps', '--sd-mount',
+        self.assertEqual(options, ['--listen', '--upstream', '--settings', '--ready-file', '--boot-status', '--apps', '--sd-mount',
                                    '--sd-source', '--commands-profile-sha256', '--catalog', '--card-catalog', '--data-root',
                                    '--current-lyrics', '--serial-file', '--battery-dir', '--asound-dir', '--player-process',
                                    '--mdns-name', '--database', '--trash', '--internal-lists', '--external-lists'])
@@ -84,6 +84,8 @@ class PackageBuildTests(unittest.TestCase):
         for gone in ('--supervise', '--restart-log', '--image-info', '--image-app', '--disable-switch', '--raw-marker', '--card-commands'):
             self.assertNotIn(gone, script)
         self.assertIn('"--catalog" "$DISC_BOOT_SLOT/catalog"', script)
+        self.assertIn('"--settings" "$DISC_BOOT_DATA/server.env"', script)
+        self.assertNotIn('--port', script, 'the ports come from the settings file')
         self.assertIn('"--database" "$DISC_BOOT_CARD/.disc/disc.db"', script)
         self.assertEqual(subprocess.run(['sh', '-n', str(folder/'bin/run')]).returncode, 0)
 
@@ -104,8 +106,8 @@ class PackageBuildTests(unittest.TestCase):
 
     @unittest.skipUnless(BOOT_FIXTURE.is_file() and SERVICE.is_file(), 'needs both host builds (scripts/test.sh in each repository)')
     def test_disc_boot_installs_and_confirms_the_gateway_which_reports_it(self):
-        port = free_port()
-        result = self.builder.build(SERVICE, self.root/'out', version='7', arch='fixture', port=port)
+        port, manager_port = free_port(), free_port()
+        result = self.builder.build(SERVICE, self.root/'out', version='7', arch='fixture', port=port, manager_port=manager_port)
         player = self.root/'player'
         for name in ('run', 'usr/data', 'tmp/sdcard', 'proc', 'fixture'):
             (player/name).mkdir(parents=True)
@@ -133,6 +135,10 @@ class PackageBuildTests(unittest.TestCase):
                               about['boot']['service']['version'], about['boot']['service']['state']),
                              ('recovery', 'disc-server', '7', 'confirmed'))
             self.assertEqual(json.loads((player/'tmp/sdcard/.disc/boot/result.json').read_text())['roles']['service']['installed'], True)
+            self.assertEqual(about['ports'], {'apps': port, 'manager': manager_port})
+            manager = http.client.HTTPConnection('127.0.0.1', manager_port, timeout=5)
+            manager.request('GET', '/', headers={'Host': f'127.0.0.1:{manager_port}'})
+            self.assertEqual(manager.getresponse().status, 200, 'the package serves its manager')
         finally:
             boot('stop')
             subprocess.run(['pkill', '-f', str(player)], capture_output=True)

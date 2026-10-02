@@ -184,6 +184,9 @@ class GatewayTests(unittest.TestCase):
 
     def start(self, www, fingerprint=FINGERPRINT, extra=()):
         self.port = free_port(); self.authority = f'127.0.0.1:{self.port}'
+        if '--manager-port' not in extra:
+            self.manager_port = free_port(); self.manager_authority = f'127.0.0.1:{self.manager_port}'
+            extra = ('--manager-port', str(self.manager_port), *extra)
         args = [*SERVICE_COMMAND, '--port', str(self.port), '--authority', self.authority,
                 '--tcp-port', str(self.tcp.server_address[1]), '--http-port', str(self.stock.server_address[1]),
                 '--apps', str(self.card/'Apps'), '--catalog', str(www/'catalog'),
@@ -212,6 +215,16 @@ class GatewayTests(unittest.TestCase):
 
     def log_text(self):
         self.log.flush(); return (TEST_OUTPUT/'gateway-test.log').read_bytes()
+
+    def manager(self, method, path, headers=None, body=None, change=False):
+        """A request to the application manager's own port; change adds the SN and a request ID."""
+        headers = {'Host': self.manager_authority, **(headers or {})}
+        if change:
+            headers = {'X-Disc-Token': TOKEN, 'X-Disc-Request': self.next_request(), **headers}
+        data = json.dumps(body).encode() if isinstance(body, (dict, list)) or body is None and change else body
+        c = http.client.HTTPConnection('127.0.0.1', self.manager_port, timeout=10)
+        c.request(method, path, body=data, headers=headers); r = c.getresponse()
+        out = (r.status, r.read(), {k.lower(): v for k, v in r.getheaders()}); c.close(); return out
 
     def next_request(self):
         self.request_counter += 1
@@ -1471,7 +1484,9 @@ class GatewayTests(unittest.TestCase):
         (other/'index.html').write_text('<p>radio</p>')
         (other/'app.json').write_text('{"schema":1,"name":"Ёж Radio","version":"1.2"}')
         (self.card/'Apps'/'No Index').mkdir()
-        self.start(www)
+        # Two apps: / serves the one chosen in the manager (owner, 2026-10-02), here Disc Player.
+        (self.root/'server.env').write_text('DEFAULT_APP=Disc Player\n')
+        self.start(www, extra=('--settings', str(self.root/'server.env')))
         # Disc Player at / and at its own address; another app only at its own.
         self.assertEqual(self.http('GET', '/')[1], self.http('GET', '/apps/Disc%20Player/')[1])
         status, body, headers = self.http('GET', '/apps/' + quote('Ёж Radio') + '/')
@@ -1492,8 +1507,8 @@ class GatewayTests(unittest.TestCase):
         self.assertEqual(self.http('HEAD', '/assets/logo.svg')[0], 200)
         # The apps with an index.html, the default first known by name.
         apps = json.loads(self.http('GET', '/api/apps')[1])
-        self.assertEqual((apps['default'], sorted((a['name'], a['version'], a['default']) for a in apps['apps']), apps['image']),
-                         ('Disc Player', [('Disc Player', None, True), ('Ёж Radio', '1.2', False)], False))
+        self.assertEqual((apps['default'], apps['chosen'], sorted((a['name'], a['version'], a['default']) for a in apps['apps']), apps['image']),
+                         ('Disc Player', 'Disc Player', [('Disc Player', None, True), ('Ёж Radio', '1.2', False)], False))
 
     def test_the_catalogs_are_the_images_and_the_card_overrides_what_the_image_admits(self):
         www, report = self.publish()
@@ -1571,11 +1586,104 @@ class GatewayTests(unittest.TestCase):
             with self.subTest(option=option):
                 self.assertEqual(subprocess.run([*SERVICE_COMMAND, option, '/x'], capture_output=True, timeout=10).returncode, 2)
         shutil.rmtree(report['app'])
-        status, body, _ = self.http('GET', '/')
-        self.assertEqual((status, body), (404, b'No app is installed\n'))
+        status, _, headers = self.http('GET', '/')
+        self.assertEqual((status, headers['location']), (302, f'http://127.0.0.1:{self.manager_port}/'))
         self.assertEqual(self.http('GET', '/app.js')[0], 404)
         self.assertEqual(json.loads(self.http('GET', '/api/about')[1])['page'], {'source': None, 'app': None, 'version': None})
         self.assertEqual(self.store('GET', '')[0], 200)  # the catalogs do not depend on an app
+
+    def test_the_manager_has_its_own_port_and_origin(self):
+        www, _ = self.publish()
+        self.start(www, extra=('--cors-origin', 'https://player.example'))
+        status, body, headers = self.manager('GET', '/')
+        self.assertEqual((status, headers['content-type']), (200, 'text/html; charset=utf-8'))
+        self.assertIn(b'./manager.js', body)
+        self.assertIn("script-src 'self'", headers['content-security-policy'])
+        self.assertIn("frame-ancestors 'none'", headers['content-security-policy'])
+        self.assertEqual(self.manager('GET', '/manager.js')[0], 200)
+        about = json.loads(self.manager('GET', '/api/about')[1])
+        self.assertEqual(about['ports'], {'apps': self.port, 'manager': self.manager_port})
+        # Another origin: neither an app's page, nor a listed hosted page, nor the apps' Host reach it.
+        for headers in ({'Origin': f'http://{self.authority}'}, {'Origin': 'https://player.example'},
+                        {'Host': self.authority}, {'Host': f'attacker.example:{self.manager_port}'}):
+            with self.subTest(headers=headers):
+                self.assertEqual(self.manager('GET', '/api/apps', headers)[0], 403)
+        self.assertEqual(self.http('GET', '/api/health', {'Origin': 'https://player.example'})[0], 200, 'the apps keep their hosted page')
+        self.assertEqual(self.manager('OPTIONS', '/api/apps')[0], 405)
+        self.assertNotIn('access-control-allow-origin', self.manager('GET', '/api/about', {'Origin': f'http://{self.manager_authority}'})[2])
+        # The manager's page is not an app: the apps' port does not serve it.
+        self.assertEqual(self.http('GET', '/manager.js')[0], 404)
+
+    def test_slash_serves_the_chosen_or_the_only_app_else_the_manager(self):
+        settings = self.root/'server.env'
+        www, report = self.publish()
+        self.start(www, extra=('--settings', str(settings)))
+        index = (report['app']/'index.html').read_bytes()
+        self.assertEqual(self.http('GET', '/')[1], index, 'the only app opens at /')
+        other = self.card/'Apps'/'Radio'
+        other.mkdir()
+        (other/'index.html').write_text('<p>Radio</p>')
+        status, _, headers = self.http('GET', '/')
+        self.assertEqual((status, headers['location']), (302, f'http://127.0.0.1:{self.manager_port}/'), 'two apps and no choice')
+        apps = json.loads(self.manager('GET', '/api/apps')[1])
+        self.assertEqual((apps['default'], apps['chosen'], sorted(a['name'] for a in apps['apps'])), (None, None, ['Disc Player', 'Radio']))
+        # Choosing needs the serial number and names an installed app.
+        self.assertEqual(self.manager('PUT', '/api/apps/default', body={'name': 'Radio'}, headers={'X-Disc-Request': self.next_request()})[0], 403)
+        self.assertEqual(self.manager('PUT', '/api/apps/default', body={'name': 'Missing'}, change=True)[0], 404)
+        self.assertEqual(self.manager('PUT', '/api/apps/default', body={'app': 'Radio'}, change=True)[0], 400)
+        status, body, _ = self.manager('PUT', '/api/apps/default', body={'name': 'Radio'}, change=True)
+        self.assertEqual((status, json.loads(body)['default'], json.loads(body)['chosen']), (200, 'Radio', 'Radio'))
+        self.assertEqual(self.http('GET', '/')[1], b'<p>Radio</p>')
+        self.assertEqual(json.loads(self.http('GET', '/api/about')[1])['page']['app'], 'Radio')
+        self.assertIn('DEFAULT_APP=Radio\n', settings.read_text())
+        # The choice outlives a restart; a chosen app that goes away gives way to the rule again.
+        self.proc.terminate(); self.proc.wait(timeout=5)
+        self.start(www, extra=('--settings', str(settings)))
+        self.assertEqual(self.http('GET', '/')[1], b'<p>Radio</p>')
+        shutil.rmtree(other)
+        self.assertEqual(self.http('GET', '/')[1], index)
+        self.assertEqual(self.manager('PUT', '/api/apps/default', body={'name': None}, change=True)[0], 200)
+        self.assertNotIn('DEFAULT_APP', settings.read_text())
+        # The apps' port never takes the manager's routes.
+        self.assertEqual(self.http('PUT', '/api/apps/default', {'X-Disc-Token': TOKEN, 'X-Disc-Request': self.next_request()},
+                                   json.dumps({'name': 'Disc Player'}).encode())[0], 405)
+
+    def test_the_settings_file_sets_the_ports_and_is_strict(self):
+        settings = self.root/'server.env'
+        apps_port, manager_port = free_port(), free_port()
+        settings.write_text(f'# ports\nPORT={apps_port}\nMANAGER_PORT={manager_port}\n')
+        www, _ = self.publish()
+        # Without --port the file's ports apply, and each authority follows its port.
+        self.port, self.authority = apps_port, f'127.0.0.1:{apps_port}'
+        self.manager_port, self.manager_authority = manager_port, f'127.0.0.1:{manager_port}'
+        args = [*SERVICE_COMMAND, '--settings', str(settings), '--tcp-port', str(self.tcp.server_address[1]),
+                '--http-port', str(self.stock.server_address[1]), '--apps', str(self.card/'Apps'), '--catalog', str(www/'catalog')]
+        self.proc = subprocess.Popen(args, stdout=self.log, stderr=self.log)
+        for _ in range(100):
+            try:
+                if self.health()[0] == 200: break
+            except OSError: time.sleep(.02)
+        self.assertEqual(json.loads(self.manager('GET', '/api/about')[1])['ports'], {'apps': apps_port, 'manager': manager_port})
+        self.proc.terminate(); self.proc.wait(timeout=5)
+        # Anything but known keys with valid values refuses the file whole (logged; the defaults apply).
+        for text, why in (('PORT=80\n', 'PORT must be'), ('PORT=12100\n', 'PORT must be'), ('VERBOSE=1\n', 'unknown key'),
+                          ('MANAGER_PORT=7870\n', 'must differ'), ('PORT 7000\n', 'KEY=VALUE'), ('DEFAULT_APP=.hidden\n', 'DEFAULT_APP must be'),
+                          ('PORT=9000\nPORT=9001\n', 'once')):
+            with self.subTest(text=text):
+                settings.write_text(text)
+                self.start(www, extra=('--settings', str(settings)))
+                self.assertIn(why.encode(), self.log_text())
+                self.assertIn(b'The settings file was refused', self.log_text())
+                self.proc.terminate(); self.proc.wait(timeout=5)
+
+    def test_the_apps_port_serves_when_the_managers_cannot_be_taken(self):
+        www, _ = self.publish()
+        with socket.socket() as held:
+            held.bind(('127.0.0.1', 0)); held.listen(1)
+            taken = held.getsockname()[1]
+            self.start(www, extra=('--manager-port', str(taken)))
+            self.assertEqual(self.health()[0], 200)
+            self.assertIn(f"The manager's port {taken} could not be taken".encode(), self.log_text())
 
     def test_a_cue_image_counts_each_track_and_the_skip_rule_sees_its_title(self):
         import sqlite3
