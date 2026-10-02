@@ -18,6 +18,10 @@ import time
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT/'scripts'))
+from firmware_profile import load_profile  # noqa: E402
+# The active reviewed firmware profile; the tests hold for whichever one is selected.
+PROFILE = load_profile()['version']
 BOOT = Path(os.environ.get('DISC_BOOT_DIR', ROOT.parent/'snowsky-disc-boot'))
 HAVE_BOOT = (BOOT/'scripts/package.py').is_file()
 BOOT_FIXTURE = BOOT/'build/host/disc-boot-fixture'
@@ -94,9 +98,9 @@ class PackageBuildTests(unittest.TestCase):
                                                      'catalog/hosted.json', 'catalog/queries.json', 'catalog/store.json', 'keys/update-keys'])
         # The owner's release key, so that the package takes the updates it signs.
         self.assertEqual((folder/'keys/update-keys').read_bytes(), (ROOT/'keys/update-keys').read_bytes())
-        self.package.check(Path(result['zip']).parent/'disc-server', 'service', '2.57')
+        self.package.check(Path(result['zip']).parent/'disc-server', 'service', PROFILE)
         with tempfile.TemporaryDirectory() as temp:
-            self.package.check(self.package.source_folder(result['zip'], temp), 'service', '2.57')
+            self.package.check(self.package.source_folder(result['zip'], temp), 'service', PROFILE)
         script = (folder/'bin/run').read_text()
         self.assertTrue(script.startswith('#!/bin/sh\n'))
         self.assertIn('exec "$DISC_BOOT_SLOT/bin/disc-service"', script)
@@ -174,11 +178,11 @@ class PackageBuildTests(unittest.TestCase):
             (player/name).mkdir(parents=True)
         (player/'proc/mounts').write_text('/dev/mmcblk0p1 /tmp/sdcard exfat rw 0 0\n')
         (player/'fixture/keys').write_text('play')
-        self.package.stage(result['zip'], player/'tmp/sdcard', profile='2.57', arch='fixture')
+        self.package.stage(result['zip'], player/'tmp/sdcard', profile=PROFILE, arch='fixture')
         env = dict(os.environ, DISC_BOOT_FIXTURE_ROOT=str(player), DISC_BOOT_FIXTURE_TIMING='confirm=1,grace=2,card=2')
         boot = lambda *a: subprocess.run([str(BOOT_FIXTURE), *a], env=env, capture_output=True, text=True, timeout=30)
         try:
-            boot('early', '--profile', '2.57', '--card', '/tmp/sdcard', '--card-source', '/dev/mmcblk0p1')
+            boot('early', '--profile', PROFILE, '--card', '/tmp/sdcard', '--card-source', '/dev/mmcblk0p1')
             boot('start')
             status, until = None, time.monotonic() + 20
             while time.monotonic() < until:
@@ -218,7 +222,7 @@ class PackageBuildTests(unittest.TestCase):
             (player/name).mkdir(parents=True)
         (player/'proc/mounts').write_text('/dev/mmcblk0p1 /tmp/sdcard exfat rw 0 0\n')
         (player/'fixture/keys').write_text('play')
-        self.package.stage(first['zip'], player/'tmp/sdcard', profile='2.57', arch='fixture')
+        self.package.stage(first['zip'], player/'tmp/sdcard', profile=PROFILE, arch='fixture')
         env = dict(os.environ, DISC_BOOT_FIXTURE_ROOT=str(player), DISC_BOOT_FIXTURE_TIMING='confirm=1,grace=2,card=2')
         boot = lambda *a: subprocess.run([str(BOOT_FIXTURE), *a], env=env, capture_output=True, text=True, timeout=30)
         status_file, log = player/'run/disc-boot/service.json', player/'run/disc-boot/service/log'
@@ -251,7 +255,7 @@ class PackageBuildTests(unittest.TestCase):
             self.fail('the manager does not answer')
 
         try:
-            boot('early', '--profile', '2.57', '--card', '/tmp/sdcard', '--card-source', '/dev/mmcblk0p1')
+            boot('early', '--profile', PROFILE, '--card', '/tmp/sdcard', '--card-source', '/dev/mmcblk0p1')
             boot('start')
             wait(lambda s: s['state'] == 'confirmed' and s['version'] == '1')
             # The signed update streams into the inactive slot, then boot switches to it on request.

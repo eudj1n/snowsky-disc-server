@@ -1791,7 +1791,7 @@ printf '{"ok":true,"name":"disc-server","version":"x","bytes":1}\\n'
         listed = {path: dict(size=len(data), sha256=hashlib.sha256(data).hexdigest(), mode='0755' if path == 'bin/run' else '0644')
                   for path, data in files.items()}
         manifest = json.dumps(dict(schema=1, name='disc-server', version=version, role='service', bootApi=1, arch='fixture',
-                                   profiles=['2.57'], entry='bin/run', args=[], ready=30, files=listed)).encode()
+                                   profiles=[PROFILE['version']], entry='bin/run', args=[], ready=30, files=listed)).encode()
         return manifest, files
 
     def update_stream(self, version, key=None):

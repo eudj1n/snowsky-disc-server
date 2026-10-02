@@ -17,6 +17,9 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT/'scripts'))
+from firmware_profile import load_profile  # noqa: E402
+# The active reviewed firmware profile; the tests hold for whichever one is selected.
+PROFILE = load_profile()['version']
 import ed25519  # noqa: E402
 import update_file  # noqa: E402
 
@@ -42,7 +45,7 @@ printf '{"ok":true,"name":"disc-server","version":"x","bytes":1}\\n'
 def manifest(files, name='disc-server', version='2', role='service', modes=None):
     listed = {path: dict(size=len(data), sha256=hashlib.sha256(data).hexdigest(), mode=(modes or {}).get(path, '0755' if path.startswith('bin/') else '0644'))
               for path, data in files.items()}
-    return json.dumps(dict(schema=1, name=name, version=version, role=role, bootApi=1, arch='fixture', profiles=['2.57'],
+    return json.dumps(dict(schema=1, name=name, version=version, role=role, bootApi=1, arch='fixture', profiles=[PROFILE],
                            entry='bin/run', args=[], ready=30, files=listed)).encode()
 
 
