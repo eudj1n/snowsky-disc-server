@@ -62,8 +62,8 @@ not claim a complete proxy for all stock routes or successful upload support.
 ```sh
 bash scripts/test.sh
 bash scripts/build.sh mips
-# On the existing disposable stack; use boot instead if stock powered off:
-python3 scripts/emulator.py start-service
+# On the disposable guest, with a package of this build installed with Play:
+python3 scripts/emulator.py install
 python3 scripts/test-mips.py
 python3 scripts/integration.py
 ```

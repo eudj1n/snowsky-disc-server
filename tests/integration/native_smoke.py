@@ -11,7 +11,7 @@ import urllib.request
 ROOT=Path(__file__).resolve().parents[2]
 spec=importlib.util.spec_from_file_location('native_test_wire',ROOT/'tests/conformance/test_service.py')
 wire=importlib.util.module_from_spec(spec);spec.loader.exec_module(wire)
-PORT=17870
+from guest_checks import PORT  # noqa: E402
 
 def get(path):
     with urllib.request.urlopen(f'http://127.0.0.1:{PORT}'+path, timeout=5) as r:return json.load(r)

@@ -4,6 +4,7 @@ The container interface is restored in finally. Power-on/native restart and fres
 fixture observation are explicit harness actions, never production replay.
 """
 from selected_firmware import VERSION, MAIN_OS, IDENTITY
+from guest_checks import AUTHORITY, PORT
 
 import importlib.util
 import http.client
@@ -20,8 +21,8 @@ spec.loader.exec_module(wire)
 
 
 def run():
-    state = json.loads((ROOT/'work/emulator.json').read_text())
-    assert state['id'].startswith('disc-native-')
+    state = json.loads((ROOT/'work/guest.json').read_text())
+    assert state['id'].startswith('disc-server-guest-')
     container = state['id']+'-emu'
     config = json.loads(subprocess.check_output(['docker', 'inspect', container]))[0]
     assert config['HostConfig']['NetworkMode'] == state['id']+'_default'
@@ -33,10 +34,10 @@ def run():
 
     def local_health():
         return json.loads(guest('python3', '-c',
-            "import json,urllib.request; r=urllib.request.Request('http://127.0.0.1:7870/api/health',headers={'Host':'127.0.0.1:17870'}); print(urllib.request.urlopen(r,timeout=2).read().decode())"))
+            "import json,urllib.request; r=urllib.request.Request('http://127.0.0.1:7870/api/health',headers={'Host':'127.0.0.1:7870'}); print(urllib.request.urlopen(r,timeout=2).read().decode())"))
 
     def connect():
-        ws = wire.WS(17870, origin='http://127.0.0.1:17870')
+        ws = wire.WS(PORT, origin=f'http://{AUTHORITY}')
         try:
             assert ws.status == 101, ws.status
             ws.send('0599000C0000')
@@ -64,7 +65,7 @@ def run():
         down = json.loads(guest('ip', '-j', 'link', 'show', 'dev', 'eth1'))[0]
         assert 'UP' not in down['flags']
         started = time.monotonic()
-        probe = http.client.HTTPConnection('127.0.0.1', 17870, timeout=1.5)
+        probe = http.client.HTTPConnection('127.0.0.1', PORT, timeout=1.5)
         try:
             try:
                 probe.request('GET', '/api/health')
@@ -87,14 +88,17 @@ def run():
         guest('ip', 'link', 'set', 'dev', 'eth1', 'up')
         restored = json.loads(guest('ip', '-j', '-4', 'addr', 'show', 'dev', 'eth1'))[0]
         assert restored['addr_info'] == interface['addr_info'], 'Interface address changed'
-        guest('bash', '/repo/emulator/scripts/16_network.sh', 'announce', timeout=80)
+        # Stock's network detector is running in a stock-init guest: announce the address again
+        # and wait for stock's listeners (16_network.sh announce waits for a direct boot's log).
+        guest('bash', '/repo/emulator/scripts/16_network.sh', 'reannounce', timeout=30)
+        guest('bash', '/repo/emulator/scripts/16_network.sh', 'wait', timeout=80)
     assert not local_health()['controlActive'], 'Service reconnected without browser'
     ws = connect()
     report['network']['explicitRecovery'] = 'handshake '+IDENTITY
     print(json.dumps(report), flush=True)
 
-    # Full Power off stops every guest process, including the native companion.
-    # The harness boots explicitly and requires a new native launch afterwards.
+    # Full Power off (stock's own poweroff -f) stops every guest process, the gateway included.
+    # The harness powers the guest on; the boot layer starts the package again.
     try:
         report['power'] = json.loads(guest('python3', '-B', '/platform/tests/integration/power_transition.py', 'off'))
         deadline = time.monotonic()+5
@@ -111,10 +115,10 @@ def run():
         report['power']['browserSocketEnded'] = True
     finally:
         ws.close()
-        subprocess.run([sys.executable, str(ROOT/'scripts/emulator.py'), 'boot'], check=True)
+        subprocess.run([sys.executable, str(ROOT/'scripts/emulator.py'), 'power', 'on'], check=True)
         guest('python3', '-B', '/platform/tests/integration/prepare_guest.py', timeout=90)
         subprocess.run([sys.executable, str(ROOT/'tests/integration/native_smoke.py')], check=True)
-    report['power']['explicitRecovery'] = 'native smoke passed after guest boot/service start'
+    report['power']['explicitRecovery'] = 'native smoke passed after power-on; the boot layer started the package'
     (ROOT/'work/transitions.json').write_text(json.dumps(report, indent=2)+'\n')
     print(json.dumps(report, indent=2), flush=True)
 

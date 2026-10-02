@@ -47,8 +47,8 @@ MIPS executable inside the guest, including the new cross-origin class and
 the check that a preflight without a listed origin is refused).
 
 The guest gateway was then started with `--cors-origin
-https://127.0.0.1:8443` (`DISC_GUEST_EXTRA_ARGS` of
-`scripts/guest-service.sh`, empty by default). A lab page served over HTTPS
+https://127.0.0.1:8443` (`DISC_GUEST_EXTRA_ARGS` of the combined images' guest script,
+empty by default; that stack is in snowsky-disc-web's history). A lab page served over HTTPS
 at that origin ran in Google Chrome 154.0.8037.58 with
 `--ip-address-space-overrides=127.0.0.1:8443=public,127.0.0.1:27870=local`
 and `--host-resolver-rules=MAP disc-lab.local 127.0.0.1`; a small local

@@ -4,15 +4,17 @@
 runner and Python unittest network scenarios against the actual host executable.
 All peers are synthetic and bind loopback. No physical target is used.
 
-`python3 scripts/test-mips.py` runs that same network suite against the installed
-MIPS executable inside the recorded disposable guest. Build/restart the native
-service first so `/usr/data/disc-service` is current. Peers and temporary service
-listeners stay inside the container; stock TCP is not used by these tests.
+`python3 scripts/test-mips.py` runs that same network suite against `build/mips`
+in the recorded disposable guest's root, on ports of its own beside the
+packaged gateway. Peers and temporary listeners stay inside the container;
+stock TCP is not used by these tests.
 
-`python3 scripts/integration.py` requires the stack recorded by
-`scripts/emulator.py up`. It verifies only generated media in that disposable
-guest and alternates the Python and native TCP owners. Disconnect browser clients
-first. It fails on unknown/uncertain fixture mutation results; there is no replay.
+`python3 scripts/integration.py` requires the guest recorded by
+`scripts/emulator.py up` (docs/development.md, "Disposable guest"): the boot
+layer's image on a stock-init guest, the gateway installed as its package with
+Play. It verifies only generated media in that disposable guest and alternates
+the Python and native TCP owners. Disconnect browser clients first. It fails on
+unknown/uncertain fixture mutation results; there is no replay.
 
 - `prepare_guest.py`: upstream guarded scan/select/pause fixture preparation.
 - `native_smoke.py`: stock identity/current song/catalog, sole ownership,
@@ -24,13 +26,20 @@ first. It fails on unknown/uncertain fixture mutation results; there is no repla
   Records initial reset separately; it never labels recovery as seamless takeover.
 - Guest preflight requires both stock processes alive; coexistence and handover
   also verify their PIDs remain unchanged.
-- The orchestrator restarts only the native companion and repeats smoke checks.
+- The orchestrator makes sure the guest and its package are up and repeats smoke checks.
+  A scenario that needs a fresh process (`--history`) ends it, and boot starts it again.
+
+`python3 tests/integration/manager_guest.py` drives the application manager from
+the host: an app installed, chosen and removed, an installation refused on a
+nearly full card, then the server's own update (a debug package signed with a
+test key made for the run) uploaded, activated, confirmed by the boot layer after
+180 s and rolled back, with stock's processes unchanged throughout.
 
 `python3 scripts/integration.py --lifecycle` additionally holds one native owner
 for two minutes, reads state/catalog repeatedly and samples resources. It then
-terminates only the verified disposable `mq_player` PID and checks WS 1011,
-upstream-unavailable responses and native owner cleanup. The orchestrator always
-reboots the disposable guest in a finally block and verifies explicit recovery.
+terminates only the verified disposable `mq_player` PID and checks WS 1011 and
+native owner cleanup; stock's own watch loop then starts the pair again and the
+gateway serves again without a restart of its own.
 This is destructive to that test guest's session, never the interactive stack.
 It is not a physical power-cycle, network-interface or long soak acceptance.
 
@@ -39,27 +48,14 @@ native session, then host-facing cable loss by bringing down only `eth1` in the
 recorded disposable container's dedicated network namespace. It verifies host
 HTTP unreachability, owner release within 10 seconds via loopback inspection,
 restores the link/address in finally, and requires explicit reconnection.
-It then uses the emulator's local Power helper to stop all guest processes and
-explicitly boots/relaunches/prepares/verifies a fresh session in finally.
+It then holds Power: stock powers the guest off (`poweroff -f`), and the
+harness powers it on in finally; the boot layer starts the package again.
 This does not model a Wi-Fi radio, kernel suspend or physical cold boot.
 
-`python3 scripts/integration.py --idle` keeps a native read-only connection while
-waiting for the real 300-second stock idle policy (no timer shortening or fake
-touches). It verifies observer reuse, the firmware's intercepted power request,
-complete guest/companion stop, closed listeners, no implicit restart, rejection
-of service-only startup while off, and explicit boot with fresh fixture/readback.
-Nine host unit tests cover bounded observer lifetime, stop/error handling and
-completion of an in-flight shutdown. The observer is container test infrastructure;
-see [idle supervision](../docs/idle-supervision.md).
-
-`python3 scripts/integration.py --offline` boots stock UI/player and the companion
-inside a fresh private network namespace with no eth/wlan interface or external
-address. It checks local Play/Pause and PCM while native assets remain available
-and unavailable upstream APIs fail within their bounds. A fingerprinted read-only
-player-state probe waits for track restoration before injecting Play; first
-framebuffer readiness alone is too early. The test then adds an isolated dummy
-link/address and checks explicit native recovery. A finally block restores the
-usual online guest and paused fixture. See [offline boot](../docs/offline-boot.md).
+The combined images' `--idle` (a container-side observer of stock's power
+request) and `--offline` (a private network namespace) scenarios went with
+their guest stack; stock-init guests serve stock's power-off themselves, and the
+offline boot is to return with the emulator's `NETWORK=isolated`.
 
 HTTP regressions cover a shared request deadline (including dripping fixed-length
 and chunked bodies), one catalog admission, concurrent health/WS responsiveness,

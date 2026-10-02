@@ -141,133 +141,68 @@ docker run --rm --network none --entrypoint sh -v "$PWD:/src:ro" \
   snowsky-disc-qemu-ci -c 'cd /src/tests/conformance && python3 -B -m unittest test_update'
 ```
 
-`tests/integration/package_guest.py --package <zip>` runs the MIPS package
-under the MIPS `disc-boot` in the disposable V2.57 guest beside stock (the
-stack's own companion is stopped for it and started again afterwards).
+On the disposable guest (below) a package is installed as on the player:
+staged on the card and taken by the boot layer with Play
+(`scripts/emulator.py install --package <zip>`).
 
-## Disposable emulator
+## Disposable guest
 
-The external repository and firmware are **inputs**, not production dependencies.
-The adapter uses upstream extraction, fingerprint verification, setup, boot and
-cleanup scripts. It never uses the interactive work volume. If needed, build the
-external image with `docker build -t snowsky-disc-qemu-ci /path/to/snowsky-disc-qemu/emulator/docker`.
-
-```sh
-python3 scripts/emulator.py up \
-  --version 2.57 \
-  --reference /Users/zhek/IdeaProjects/snowsky-disc-qemu \
-  --firmware /Users/zhek/Downloads/SNOWSKY_DISC_update_20260909_v257/main_os/ota_v257
-```
-
-The external setup sizes the guest's FAT card as its content plus 32 MB; a
-dozen page releases filled that, and the service then stopped recording plays
-without a word (2026-09-29). `up` therefore writes a zero-filled file of
-`--card-headroom-mb` (default 224) into the fixture folder before the setup
-and removes it from the card right after, so the card keeps that much more
-room; the external repository is unchanged. Since combined-009 a page is an app
-installed into the guest card's `Apps/` (`app_bundle.py install`, see
-[Apps on the card](sd-webroot.md)); nothing accumulates.
-
-`--version` is optional: `FW_VERSION` or `firmware/active-version` supplies the
-default. It must match the OTA and the reviewed reference profile. A recorded
-stack stays pinned to its version/profile; changing the default does not retarget it.
-
-Open **http://127.0.0.1:17870**. The native process inside the guest serves this
-page and handles WS/HTTP. No external Python WS bridge is involved.
-Only that port is published, on host loopback. The configured internal upstream
-is `127.0.0.1`, verified against stock V2.57 wildcard listeners. It does not
-depend on the Ethernet/Wi-Fi address.
-
-Initial media is synthetic and not yet scanned. Disconnect the browser and run:
+The gateway is checked as the player runs it: the boot layer's package on the
+boot layer's image, in a disposable stock-init guest of the pinned emulator
+(snowsky-disc-qemu, a revision snowsky-disc-boot reviewed for the selected
+firmware). The stack is snowsky-disc-boot's `scripts/guest.py`
+(`DISC_BOOT_DIR`, by default the sibling checkout) with this repository's own
+record, `work/guest.json`. The emulator checkout, the firmware and the image
+are inputs, mounted read-only; nothing here changes them.
 
 ```sh
-python3 scripts/integration.py
-# Same synthetic network contract against the installed MIPS binary (it runs
-# /usr/data/disc-service: install a new build with start-service first):
-python3 scripts/test-mips.py
-# Optional two-minute session, stock-process loss, guest reboot and recovery:
-python3 scripts/integration.py --lifecycle
-# Optional virtual cable loss, display sleep/wake, explicit guest Power cycle:
-python3 scripts/integration.py --transitions
-# Optional boot without eth/wlan, local playback and isolated address arrival:
-python3 scripts/integration.py --offline
-# Optional natural five-minute idle power-off and explicit recovery:
-python3 scripts/integration.py --idle
-# Optional ten-minute resource/read/reconnect acceptance:
-python3 scripts/integration.py --soak
-# Stage B gateway acceptance against stock: publish a catalog release on the
-# disposable card, upload a track through the gateway, scan, play, pause, replay refusal:
-python3 scripts/integration.py --gateway
-# Combined-008 database acceptance: play on stock until the observer records a
-# play in .disc/disc.db, check the file and that the service holds nothing open
-# on the card, restart the service and read the same history back:
-python3 scripts/integration.py --history
-# Combined-008 store acceptance: dislike a generated track through the store,
-# read it through a reviewed query, and watch the service skip it on stock:
-python3 scripts/integration.py --store
-# Combined-008 trash acceptance: trash a scanned probe folder, rescan, restore,
-# replace its cover through the trash, refuse the file stock holds, empty:
-python3 scripts/integration.py --trash
-# Combined-008 audio route: generated card audio whole and in byte ranges:
-python3 scripts/integration.py --audio
-# Combined-008 self-recovery: kill the supervised service (restarted), then
-# stop it with the .disc/disabled card switch; the service is started again:
-python3 scripts/integration.py --recovery
-# Combined-008/009 diagnostics and the image's app: /api/about on the MIPS service,
-# then Disc Player from the rootfs while the card's copy is aside:
-python3 scripts/integration.py --about
-# Combined-008 CUE plays: a generated three-track image counts per track, and
-# a disliked CUE track is skipped:
-python3 scripts/integration.py --cue
-# Combined-009 routes on stock: M3U lists written, played through the gateway,
-# replaced and deleted (internal and external), a browser play in the history,
-# the card as one folder and as a tree:
-python3 scripts/integration.py --lists
-# Research, not acceptance: how stock treats M3U lists (docs/m3u.md); the
-# evidence lands in work/m3u-research.json:
-python3 scripts/integration.py --m3u
+# Once per emulator revision: its image under a tag of its own.
+docker build -t snowsky-disc-qemu-ci:<revision> <emulator>/emulator/docker
+# The boot layer's review image, in snowsky-disc-boot (docs/development.md there).
+bash scripts/build.sh mips
+python3 scripts/emulator.py up --reference <emulator> --image <boot image> --ota <firmware>/main_os/ota_v<version>
 ```
 
-This prepares/scans only the disposable generated media using the reviewed Python
-Controller, selects and pauses a test track, then verifies native readback,
-ownership and reconnect. Tests alternate control ownership; they do not replay
-mutations after uncertain outcomes.
-
-After rebuilding the binary, replace/restart only the native companion:
+`up` brings the guest up (stock's `rcS` and watch loop, `/usr/data` as an
+83 MiB file system, a synthetic serial number, no idle power-off), stages a
+debug package of `build/mips` on the card with the guest off, and powers on
+holding Play: the boot layer installs it and starts it. Its ports, 7870
+(apps) and 7871 (the manager), are published on host loopback under the same
+numbers, so the gateway's own authorities hold. Open
+**http://127.0.0.1:7870** and **http://127.0.0.1:7871**.
 
 ```sh
-python3 scripts/emulator.py start-service
-# Explicit guest Power/boot, followed by native service start:
-python3 scripts/emulator.py boot
-python3 scripts/emulator.py status
-python3 scripts/emulator.py down
+python3 scripts/emulator.py install [--package <zip>]   # another package: off, stage, on with Play
+python3 scripts/emulator.py wait [--confirmed]          # ready, or confirmed (180 s after ready)
+python3 scripts/emulator.py restart-service             # the process ends; boot starts it again
+python3 scripts/emulator.py power on|reboot|off|cut [--unsynced] [--hold play]
+python3 scripts/emulator.py status | down
 ```
 
-`down` stops the guest and removes only the recorded stack/volume. Generated host
-fixtures and evidence remain in ignored `work/`. Guest/service lifetime is bounded
-to at most two hours. Stock idle power-off may occur earlier (observed setting:
-300 seconds); display-never does not disable it, and read-only traffic does not
-reset it. A container-side observer now consumes the stock power request using
-the reference guest-scoped shutdown method, including companion cleanup.
-Use explicit `boot` to recover. `start-service` only restarts the companion on a
-ready guest and rejects an already stopped player. There is no installed boot
-hook, automatic guest restart or automatic reconnect. `status` also reports the
-observer; [idle supervision](idle-supervision.md) describes its lifecycle/tests.
-The [resource soak](resource-soak.md) temporarily limits only the companion to
-64 FDs, samples QEMU RSS/threads/descriptors and uses short local Play/Pause
-pulses during 20 read-only native connection cycles. It restores the limit;
-a failed soak explicitly reboots/prepares the disposable guest.
-For a fresh fixture, stop the disposable stack and create a new one.
-Each companion start also gives the guest the player's battery sysfs layout
-(`firmware/os/v<version>.json`: `type=Mains`, no `status`/`online`, synthetic
-`current_now`/`cycle_count`). The external boot script rewrites `status` on
-every boot, so the overlay is applied again each time; stock reads only
-`capacity` and `temp` there.
+The checks run against that guest. Disconnect the browser first:
 
-The companion starts with loopback upstream even without an `eth1` interface,
-so assets/health remain usable locally. Stock control services remain unavailable
-until network readiness. See [offline boot](offline-boot.md) for the namespace
-test, explicit connection recovery without service restart and limits.
+```sh
+python3 scripts/integration.py             # media prepared, native smoke, coexistence, handover
+python3 scripts/integration.py --gateway   # also --history --store --trash --audio --about --cue --lists
+python3 scripts/integration.py --lifecycle # also --transitions --soak; research: --m3u --queue-research
+python3 tests/integration/manager_guest.py # apps, room, the server's update, activation and rollback
+python3 scripts/test-mips.py               # the conformance contract against build/mips in the guest's root
+```
+
+Each scenario keeps its evidence in ignored `work/`. Tests alternate control
+ownership; they do not replay mutations after uncertain outcomes. Boot
+restarts a confirmed version at most three times in ten minutes, so
+`restart-service` is for a scenario's single restart, not a loop. A guest stock
+powered off (a long Power press) is powered on again by the runner.
+`down` removes only the recorded stack and its volume.
+
+The combined images' own guest stack (a direct boot with the companion started
+by a guest-side supervisor, the card switch, the image's copy of the page, a
+padded card and a battery overlay) went with them; the emulator now provides
+what it worked around (snowsky-disc-qemu
+`docs/development/emulator-depth-handoff.md`). Its history is in
+snowsky-disc-web. Not carried over yet: the boot without a network
+(`NETWORK=isolated` replaces its private namespace).
 
 ## Scope and evidence
 

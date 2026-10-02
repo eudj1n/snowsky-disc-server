@@ -17,7 +17,7 @@ def selected():
         if not os.environ.get('FW_VERSION'):
             raise ValueError('Disposable integration needs explicit FW_VERSION')
         return profiles.load_profile(os.environ['FW_VERSION'])
-    return profiles.state_profile(json.loads((ROOT/'work/emulator.json').read_text()))
+    return profiles.state_profile(json.loads((ROOT/'work/guest.json').read_text()))
 
 
 PROFILE = selected()

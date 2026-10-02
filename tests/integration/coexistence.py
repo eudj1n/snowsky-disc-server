@@ -8,13 +8,13 @@ from pathlib import Path
 import time
 import urllib.request
 from emulator.runtime.keys import Buttons, Device
-from guest_checks import native_resources, stock_processes
+from guest_checks import AUTHORITY, native_resources, stock_processes
 
 assert os.environ.get('CI_DISPOSABLE') == '1'
 root=Path('/work/rootfs')
 spec=importlib.util.spec_from_file_location('wire','/platform/tests/conformance/test_service.py')
 wire=importlib.util.module_from_spec(spec);spec.loader.exec_module(wire)
-authority='127.0.0.1:17870'
+authority=AUTHORITY
 req=urllib.request.Request('http://127.0.0.1:7870/api/health',headers={'Host':authority})
 health=json.load(urllib.request.urlopen(req,timeout=3));assert not health['controlActive']
 
@@ -30,7 +30,7 @@ def query(ws,tag,expected,payload=''):
     raise AssertionError('Event budget exceeded')
 
 def resources():
-    # The supervised service process (guest_checks knows the supervisor, combined-008).
+    # The gateway's process, run by the boot layer as its package.
     return native_resources()
 
 stock_before=stock_processes()

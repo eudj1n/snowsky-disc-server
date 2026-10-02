@@ -199,11 +199,6 @@ def database(sd_mount):
     return f'{data_dir(sd_mount)}/disc.db'
 
 
-def disable_switch(sd_mount):
-    """A file or folder here stops the service while the card is in the player."""
-    return f'{data_dir(sd_mount)}/disabled'
-
-
 def trash(sd_mount):
     """Where files and folders moved to the trash wait on the music card."""
     return f'{data_dir(sd_mount)}/trash'

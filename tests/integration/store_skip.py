@@ -19,11 +19,11 @@ sys.path.insert(0, '/platform/tests/conformance')
 sys.path.insert(0, '/platform/tests/integration')
 from test_service import WS  # noqa: E402
 from gateway_mutation import AUTHORITY, PORT, call, wait_event  # noqa: E402
+from guest_checks import service_log  # noqa: E402
 
 ALBUM = Path('/tmp/sdcard/Кириллица Ё й')
 DISLIKED = ALBUM/'Second — Ё.flac'
 FOLLOWING = ALBUM/'Third — й.flac'
-LOG = Path('/work/disc-service.log')
 OUT = Path('/work/disc-store.json')
 SERIAL = '00000000000000'
 summary = {'steps': []}
@@ -81,7 +81,8 @@ def main():
     assert status == 200 and rows and rows[0][0] == str(DISLIKED), (status, body[:200])
     step('query', rows=len(rows), plays=rows[0][3])
     status, body, _ = call('GET', '/api/history'); plays_before = [r['path'] for r in json.loads(body)['records']]
-    log_mark = LOG.stat().st_size
+    # The boot layer keeps the gateway's output (capped by emptying): count its skip lines.
+    skips_before = [line for line in service_log().splitlines() if 'Skip rule:' in line]
     # Play all, then 26 s into the first track; the session closes, so the service applies the rule.
     control(('0101000C0001', 'a202', 0), ('0103001000006590', 'a103', None))
     first = player_file()
@@ -97,11 +98,13 @@ def main():
     held = round(following_at - disliked_at, 1)
     assert held < 15, held  # the file is 30 s long; skipped, not played through
     # The service reports once stock confirmed the following track (or its budget ran out).
-    deadline, log = time.monotonic() + 12, ''
-    while time.monotonic() < deadline and 'Skip rule:' not in log:
-        time.sleep(.5); log = LOG.read_bytes()[log_mark:].decode(errors='replace')
-    assert 'Skip rule: skipped to the next track' in log, log[-400:]
-    step('skipped', first=first, sequence=seen, disliked_held_s=held, log=[line for line in log.splitlines() if 'Skip rule' in line])
+    deadline, new_skips = time.monotonic() + 12, []
+    while time.monotonic() < deadline and not new_skips:
+        time.sleep(.5)
+        skips = [line for line in service_log().splitlines() if 'Skip rule:' in line]
+        new_skips = skips[len(skips_before):] if len(skips) >= len(skips_before) else skips
+    assert any('Skip rule: skipped to the next track' in line for line in new_skips), new_skips
+    step('skipped', first=first, sequence=seen, disliked_held_s=held, log=new_skips)
     time.sleep(1)
     status, body, _ = call('GET', '/api/history')
     new = [r['path'] for r in json.loads(body)['records']][len(plays_before):]

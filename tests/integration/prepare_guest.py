@@ -4,17 +4,23 @@ Run only inside scripts/emulator.py's disposable guest after disconnecting brows
 """
 import json
 import os
+import time
 from pathlib import Path
 import urllib.request
 from controller import DeviceConfig, DiscSession
 from tests.fixtures.fixture import NAMES
-from guest_checks import stock_processes
+from guest_checks import AUTHORITY, PORT, stock_processes
 
 assert os.environ.get('CI_DISPOSABLE') == '1'
 stock_processes()
-request = urllib.request.Request('http://127.0.0.1:7870/api/health', headers={'Host':'127.0.0.1:17870'})
+request = urllib.request.Request(f'http://127.0.0.1:{PORT}/api/health', headers={'Host': AUTHORITY})
 health = json.load(urllib.request.urlopen(request, timeout=3))
 assert not health['controlActive'], 'Disconnect the browser before alternating ownership'
+# After stock's watch loop restarts the pair, the guest's card is mounted again a moment later.
+for _ in range(60):
+    if all((Path('/work/rootfs/tmp/sdcard')/'Кириллица Ё й'/name).exists() for name in NAMES):
+        break
+    time.sleep(1)
 for name in NAMES:
     relative=Path('Кириллица Ё й')/name
     assert (Path('/work/rootfs/tmp/sdcard')/relative).read_bytes() == (Path('/sdcard')/relative).read_bytes()

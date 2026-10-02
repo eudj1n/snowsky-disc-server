@@ -1,5 +1,9 @@
 # Native feasibility validation — 2026-09-23
 
+> Evidence of the combined images' guest stack (a direct boot, the companion started by a guest-side
+> supervisor), kept as history. The gateway is now checked as the boot layer's package on a stock-init
+> guest: [development](development.md#disposable-guest).
+
 ## Result and scope
 
 The C companion was cross-compiled and ran **inside** an extracted, fingerprinted

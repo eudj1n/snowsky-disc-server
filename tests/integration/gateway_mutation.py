@@ -16,7 +16,7 @@ from urllib.parse import quote
 sys.path.insert(0, '/platform/tests/conformance')
 from test_service import WS, record  # noqa: E402
 
-PORT, AUTHORITY, CARD = 7870, '127.0.0.1:17870', Path('/tmp/sdcard')
+from guest_checks import AUTHORITY, CARD, PORT  # noqa: E402
 OUT = Path('/work/disc-gateway.json')
 summary = {'steps': []}
 

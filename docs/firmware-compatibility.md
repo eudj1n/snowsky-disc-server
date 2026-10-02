@@ -54,9 +54,9 @@ for that release, starting with the battery fuel gauge: its sysfs path, the
 reported `type`, the attributes present and those absent (`status`, `online`
 on V2.57). The rootfs fingerprint must match the main profile, paths are
 restricted to `/sys/class/power_supply/<name>` and a missing profile is not
-inherited. The disposable guest applies it through
-`scripts/runtime/battery_overlay.py` so OS-level readers see the player's
-layout there too; later images take their sysfs/procfs arguments from it.
+inherited. The disposable guest gets the same layout from the emulator
+(`BATTERY_PROFILE=device`); the package takes its sysfs/procfs arguments from
+the profile.
 
 `firmware/probes/v<version>.json` admits the separate host CPU-info observation.
 It pins the requested firmware/rootfs, reviewed protocol source, USB VID/PID and

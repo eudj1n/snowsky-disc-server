@@ -66,12 +66,15 @@ def run():
     finally:
         ws.close()
     released()
-    unavailable = wire.WS(7870, host=AUTHORITY)
-    try:
-        assert unavailable.status == 503, unavailable.status
-    finally:
-        unavailable.close()
-    assert catalog_status() == 502
+    # Stock's own watch loop (fiio_init.sh) starts the pair again within seconds; the gateway
+    # serves again without a restart of its own.
+    lost = time.monotonic()
+    while catalog_status() != 200:
+        assert time.monotonic() - lost < 60, 'stock did not come back'
+        time.sleep(1)
+    back = round(time.monotonic() - lost, 1)
+    restarted = stock_processes()
+    assert restarted['mq_player'] != stock['mq_player'] and restarted['mq_ui'] != stock['mq_ui'], (stock, restarted)
     assert health()['controlActive'] is False
     after = native_resources()
     assert after['pid'] == before['pid'], 'Native service restarted unexpectedly'
@@ -80,7 +83,7 @@ def run():
     assert max(s['fds'] for s in samples)-min(s['fds'] for s in samples) <= 1, samples
     report = dict(durationSeconds=round(time.monotonic()-started, 1), readbacks=count,
                   catalogReads=len(samples), before=before, samples=samples, after=after,
-                  stockLossWsCode=1011, unavailableWsStatus=503, unavailableHttpStatus=502,
+                  stockLossWsCode=1011, stockBackSeconds=back, stockRestarted=restarted,
                   limits='Paused two-minute emulator observation, not hardware memory or long soak acceptance.')
     Path('/work/disc-lifecycle.json').write_text(json.dumps(report, indent=2)+'\n')
     print(json.dumps(report, indent=2), flush=True)

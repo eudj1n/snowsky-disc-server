@@ -1,128 +1,160 @@
 #!/usr/bin/env python3
-"""Project-owned adapter around the external emulator's disposable runtime."""
+"""The server's disposable guest: a boot-layer image under stock init, the gateway as its package.
+
+The stack is snowsky-disc-boot's scripts/guest.py (DISC_BOOT_DIR, by default
+the sibling checkout) with a record of its own (work/guest.json): the pinned
+emulator runs the boot layer's review image on the selected stock firmware,
+with /usr/data as a file system, stock's init and its watch loop. The
+server's package is staged on the card and the guest powered on holding Play,
+so disc-boot installs and starts it as on the player; boot supervises it from
+then on. The gateway's ports, 7870 (apps) and 7871 (the manager), are
+published on host loopback under the same numbers, so its own authorities
+hold; this repository is mounted at /platform for the checks.
+
+  up --reference DIR --image FILE --ota DIR [--package ZIP]
+  install [--package ZIP]       power off, stage, power on holding Play, wait until ready
+  wait [--confirmed]            the service ready (or confirmed: 180 s after ready)
+  restart-service               end the gateway's process; boot starts it again, as after a crash
+  power on|reboot|off|cut [--unsynced]|status [--hold KEYS]
+  run COMMAND...                in the container
+  status | down
+
+Without --package a debug package is built from build/mips (build_package.py
+--debug): the checks before a release run the gateway with its debug information.
+"""
 import argparse
 import json
+import urllib.request
 import os
 from pathlib import Path
 import subprocess
+import sys
 import time
-from firmware_profile import load_profile, state_profile, fingerprint
 
-ROOT = Path(__file__).resolve().parent.parent
-STATE = ROOT/'work/emulator.json'
-# The external setup sizes the guest's FAT card as its content plus 32 MB, which
-# a dozen page releases filled (2026-09-29: the history stopped without a word).
-# A zero-filled file makes the card larger at setup and is removed right after,
-# so the room stays free; the external repository is unchanged.
-HEADROOM = '.disc-guest-headroom'
+ROOT = Path(__file__).resolve().parents[1]
+BOOT = Path(os.environ.get('DISC_BOOT_DIR', ROOT.parent/'snowsky-disc-boot'))
+STATE = ROOT/'work/guest.json'
+PORTS = (7870, 7871)
 
-def run(*args, **kwargs):
-    return subprocess.run(list(map(str, args)), check=True, **kwargs)
 
-def compose(state, *args, cleanup=False):
-    # A profile edit must not prevent removal of the already-recorded stack.
-    if cleanup and (not args or args[0] != 'down'):
-        raise ValueError('Profile-independent composition is only for teardown')
-    version = state.get('firmwareVersion', '') if cleanup else state_profile(state)['version']
-    env = os.environ.copy()
-    for key in ('COMPOSE_PROFILES', 'DEVICE_BOOT_SCRIPT'):
-        env.pop(key, None)
-    env.update(OTA_DIR=state['firmware'], FW_VERSION=version, EMU_IMAGE=state['image'],
-               EMU_CONTAINER_NAME=state['id']+'-emu', WORK_VOLUME=state['id']+'-work',
-               SD_DIR=state['sd'], GUEST_TTL='7200')
-    return run('docker', 'compose', '--project-directory', state['reference'],
-               '--env-file', '/dev/null', '-p', state['id'],
-               '-f', str(Path(state['reference'])/'emulator/compose.yaml'),
-               '-f', str(Path(state['reference'])/'ci/compose.yml'),
-               '-f', str(ROOT/'work/native-overlay.json'), *args, env=env)
+def guest(*args, capture=False):
+    if not (BOOT/'scripts/guest.py').is_file():
+        raise SystemExit(f'snowsky-disc-boot not found at {BOOT}; set DISC_BOOT_DIR')
+    return subprocess.run([sys.executable, str(BOOT/'scripts/guest.py'), '--state', str(STATE), *map(str, args)],
+                          check=True, text=True, capture_output=capture)
 
-def service(state):
-    compose(state, 'exec', '-T', 'emulator', 'python3', '-B', '/platform/scripts/runtime/guest_supervisor.py', 'start')
-    compose(state, 'exec', '-T', 'emulator', 'bash', '/platform/scripts/guest-service.sh')
 
-def stop_supervisor(state):
-    compose(state, 'exec', '-T', 'emulator', 'python3', '-B', '/platform/scripts/runtime/guest_supervisor.py', 'stop')
+def status():
+    return json.loads(guest('status', capture=True).stdout)
+
+
+def wait(confirmed=False, limit=None):
+    wanted = ('confirmed',) if confirmed else ('ready', 'confirmed')
+    until, current = time.monotonic() + (limit or (420 if confirmed else 240)), None
+    while time.monotonic() < until:
+        current = status()
+        service = current.get('service') or {}
+        if service.get('state') in wanted:
+            return current
+        if service.get('state') in ('failed', 'absent', 'stock-mode'):
+            break
+        time.sleep(3)
+    raise SystemExit(f'The service package is not {wanted[0]}: {json.dumps(current)}')
+
+
+def uptime():
+    request = urllib.request.Request(f'http://127.0.0.1:{PORTS[0]}/api/about', headers={'Host': f'127.0.0.1:{PORTS[0]}'})
+    with urllib.request.urlopen(request, timeout=5) as response:
+        return json.load(response)['service']['uptime']
+
+
+def restart_service():
+    """The gateway's process ends as in a crash; boot restarts a confirmed version after 2 s
+    (at most three times in ten minutes)."""
+    before = uptime()
+    # From the container, by the process name (the guest's BusyBox has no pkill).
+    guest('run', 'python3', '-c', 'import os, signal, sys; sys.path.insert(0, "/platform/tests/integration"); '
+          'from guest_checks import guest_processes; [os.kill(pid, signal.SIGTERM) for pid in guest_processes("disc-service")]')
+    until = time.monotonic() + 120
+    while time.monotonic() < until:
+        time.sleep(1)
+        try:
+            if uptime() < before:
+                return wait()
+        except OSError:
+            continue
+    raise SystemExit('The gateway did not come back')
+
+
+def debug_package():
+    sys.path.insert(0, str(ROOT/'scripts'))
+    import build_package
+    output = ROOT/'work'/f'guest-package-{time.time_ns()}'
+    return Path(build_package.build(output=output, debug=True)['zip'])
+
+
+def install(package):
+    package = Path(package) if package else debug_package()
+    guest('power', 'off')
+    guest('stage', '--package', package)
+    guest('power', 'on', '--hold', 'play')
+    current = wait()
+    print(json.dumps({'package': str(package), 'boot': current['boot'], 'service': current['service']}, indent=2), flush=True)
+
 
 def main():
-    p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument('action', choices=['up', 'boot', 'start-service', 'stop-service', 'status', 'down'])
-    p.add_argument('--reference', type=Path)
-    p.add_argument('--firmware', type=Path)
-    p.add_argument('--version', help='Reviewed profile for a new stack; defaults to FW_VERSION or active-version')
-    p.add_argument('--image', default='snowsky-disc-qemu-ci')
-    p.add_argument('--card-headroom-mb', type=int, default=224,
-                   help='Free room added to the guest card at setup (0 keeps the external default)')
+    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = p.add_subparsers(dest='action', required=True)
+    u = sub.add_parser('up')
+    u.add_argument('--reference', type=Path, required=True)
+    u.add_argument('--image', type=Path, required=True)
+    u.add_argument('--ota', type=Path, required=True)
+    u.add_argument('--package', type=Path)
+    i = sub.add_parser('install')
+    i.add_argument('--package', type=Path)
+    sub.add_parser('restart-service')
+    w = sub.add_parser('wait')
+    w.add_argument('--confirmed', action='store_true')
+    o = sub.add_parser('power')
+    o.add_argument('event', choices=['on', 'reboot', 'off', 'cut', 'status'])
+    o.add_argument('--unsynced', action='store_true')
+    o.add_argument('--hold', default='')
+    r = sub.add_parser('run')
+    r.add_argument('command', nargs=argparse.REMAINDER)
+    sub.add_parser('status')
+    sub.add_parser('down')
     args = p.parse_args()
     if args.action == 'up':
         if STATE.exists():
-            p.error('A project stack is recorded; inspect status or run down first')
-        if not args.reference or not args.firmware:
-            p.error('up needs --reference and --firmware (matching OTA chunk directory)')
-        profile = load_profile(args.version)
-        ref, fw = args.reference.resolve(), args.firmware.resolve()
-        if not (ref/'ci/cleanup.sh').is_file() or not fw.is_dir():
-            p.error('External repository or firmware directory missing')
-        if not (ROOT/'build/mips/disc-service').is_file():
-            p.error('Build the MIPS service first')
-        revision = subprocess.check_output(['git', '-C', str(ref), 'rev-parse', 'HEAD'], text=True).strip()
-        if revision not in profile['reference_revisions']:
-            p.error('Unreviewed emulator revision; review and record compatibility before updating this gate')
-        reference_profile = json.loads((ref/'firmware'/f'v{profile["version"]}.json').read_text())
-        for key in ('version', 'product', 'main_os_version', 'recovery_os_version', 'rootfs_chunks', 'rootfs_size', 'rootfs_sha256'):
-            if reference_profile.get(key) != profile[key]:
-                p.error(f'External firmware profile differs: {key}')
-        ident = 'disc-native-'+str(time.time_ns())
-        sd = ROOT/'work'/ident/'sdcard'; sd.mkdir(parents=True)
-        state = dict(id=ident, reference=str(ref), firmware=str(fw), image=args.image, sd=str(sd), referenceRevision=revision,
-                     firmwareVersion=profile['version'], firmwareProfileSha256=fingerprint(profile))
-        overlay = {'services': {'emulator': {'volumes': [f'{ref}:/repo:ro', f'{ROOT}:/platform:ro'], 'ports': ['127.0.0.1:17870:7870']}}}
-        (ROOT/'work/native-overlay.json').write_text(json.dumps(overlay, indent=2)+'\n')
-        STATE.write_text(json.dumps(state, indent=2)+'\n')
-        print('Disposable stack:', ident, flush=True)
-        run('docker', 'run', '--rm', '--network', 'none', '-v', f'{ref}:/repo:ro', '-v', f'{sd}:/fixtures', args.image,
-            'python3', '-B', '-m', 'tests.fixtures.fixture', '/fixtures')
-        if not 0 <= args.card_headroom_mb <= 2048:
-            p.error('--card-headroom-mb takes 0 to 2048')
-        if args.card_headroom_mb:
-            # Written, not sparse: the setup measures the folder with du.
-            with open(sd/HEADROOM, 'wb') as pad:
-                for _ in range(args.card_headroom_mb):
-                    pad.write(bytes(1024 * 1024))
-        compose(state, 'up', '-d', '--no-build', 'emulator')
-        for script, extra in [('00_extract_rootfs.sh', ['/ota']), ('10_setup_env.sh', [])]:
-            compose(state, 'exec', '-T', 'emulator', 'bash', '/repo/emulator/scripts/'+script, *extra)
-        if args.card_headroom_mb:
-            compose(state, 'exec', '-T', 'emulator', 'rm', '-f', '/tmp/sdcard/'+HEADROOM)
-            (sd/HEADROOM).unlink()
-            compose(state, 'exec', '-T', 'emulator', 'df', '-k', '/tmp/sdcard')
-        compose(state, 'exec', '-T', 'emulator', 'python3', '-B', '-m', 'tests.integration.awake_check', '--configure')
-        compose(state, 'exec', '-T', 'emulator', 'bash', '/repo/emulator/scripts/20_boot.sh')
-        service(state)
-        print('Native probe: http://127.0.0.1:17870', flush=True)
-        return
-    if not STATE.exists():
-        p.error('No project-owned stack is recorded')
-    state = json.loads(STATE.read_text())
-    if args.version is not None and args.version != state_profile(state)['version']:
-        p.error('Existing stack version is pinned; create a fresh stack to select another firmware')
-    if args.action == 'boot':
-        stop_supervisor(state)
-        compose(state, 'exec', '-T', 'emulator', 'bash', '/repo/emulator/scripts/20_boot.sh')
-        service(state)
-    elif args.action == 'start-service': service(state)
-    elif args.action == 'stop-service':
-        compose(state, 'exec', '-T', 'emulator', 'python3', '/platform/scripts/stop-service.py')
+            p.error('A guest is recorded; use status or down first')
+        guest('up', '--reference', args.reference, '--image', args.image, '--ota', args.ota, '--name', 'disc-server-guest',
+              *[x for port in PORTS for x in ('--publish', port)], '--mount', f'platform={ROOT}')
+        # The checks pin this repository's profile too (firmware_profile.state_profile).
+        sys.path.insert(0, str(ROOT/'scripts'))
+        from firmware_profile import fingerprint, load_profile
+        state = json.loads(STATE.read_text())
+        state['firmwareProfileSha256'] = fingerprint(load_profile(state['firmwareVersion']))
+        STATE.write_text(json.dumps(state, indent=2) + '\n')
+        install(args.package)
+        print(f'Apps: http://127.0.0.1:{PORTS[0]}  Manager: http://127.0.0.1:{PORTS[1]}', flush=True)
+    elif args.action == 'install':
+        install(args.package)
+    elif args.action == 'restart-service':
+        print(json.dumps(restart_service()['service'], indent=2))
+    elif args.action == 'wait':
+        print(json.dumps(wait(args.confirmed), indent=2))
+    elif args.action == 'power':
+        extra = ['--unsynced'] if args.unsynced else []
+        guest('power', args.event, '--hold', args.hold, *extra)
+        if args.event in ('on', 'reboot'):
+            print(json.dumps(wait()['service'], indent=2))
+    elif args.action == 'run':
+        guest('run', *args.command)
     elif args.action == 'status':
-        compose(state, 'ps')
-        compose(state, 'exec', '-T', 'emulator', 'python3', '-B', '/platform/scripts/runtime/guest_supervisor.py', 'status')
+        print(json.dumps(status(), indent=2))
     else:
-        # Guest cleanup is best effort if a partial setup never booted.
-        try:
-            stop_supervisor(state)
-            compose(state, 'exec', '-T', 'emulator', 'bash', '/repo/ci/cleanup.sh')
-        except (subprocess.CalledProcessError, ValueError, FileNotFoundError): pass
-        compose(state, 'down', '--volumes', '--timeout', '5', cleanup=True)
-        STATE.unlink()
-        print('Removed only the recorded disposable stack and volume. Local evidence retained.')
+        guest('down')
 
-if __name__ == '__main__': main()
+
+if __name__ == '__main__':
+    main()

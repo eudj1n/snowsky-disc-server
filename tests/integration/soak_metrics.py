@@ -2,9 +2,11 @@
 MAX_RSS_KIB = 32768
 MAX_RSS_GROWTH_KIB = 4096
 MAX_FDS = 12
-# combined-008: the play observer runs from the main loop, which frees the slot it
-# took in combined-007 (peak 9): main, civetweb master, 4 workers, one session reader.
-MAX_THREADS = 12
+# The gateway as the boot layer's package (2026-10-03, measured 14 idle): main, the apps' context
+# (master and 8 workers, combined-009), the manager's (master and 2 workers), with one session
+# reader and room for a transient one. The worker counts themselves are an open item (plan,
+# "Resource headroom").
+MAX_THREADS = 16
 SOFT_NOFILE = 64
 MIN_SECONDS = 600
 MIN_CYCLES = 20

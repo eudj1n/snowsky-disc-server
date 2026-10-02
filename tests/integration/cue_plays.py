@@ -17,7 +17,8 @@ from urllib.parse import quote
 sys.path.insert(0, '/platform/tests/conformance')
 sys.path.insert(0, '/platform/tests/integration')
 from gateway_mutation import call  # noqa: E402
-from store_skip import LOG, control, guarded  # noqa: E402
+from store_skip import control, guarded  # noqa: E402
+from guest_checks import service_log  # noqa: E402
 from trash_card import scan  # noqa: E402
 
 PROBE = Path('/tmp/sdcard/CUE Probe')
@@ -69,9 +70,11 @@ def main():
     step('per_track', titles=[title for _, title in plays])
     status, body, _ = guarded('PUT', '/api/store/disliked/record', {'path': str(IMAGE), 'title': 'Part Two', 'at': int(time.time())})
     assert status == 200, (status, body[:120])
-    mark = LOG.stat().st_size
+    # The boot layer keeps the gateway's output (capped by emptying): the skip lines after this mark.
+    before = [line for line in service_log().splitlines() if 'Skip rule' in line]
     plays = play_album(62)
-    log = [line for line in LOG.read_bytes()[mark:].decode(errors='replace').splitlines() if 'Skip rule' in line]
+    after = [line for line in service_log().splitlines() if 'Skip rule' in line]
+    log = after[len(before):] if len(after) >= len(before) else after
     assert plays == [(str(IMAGE), 'Part One'), (str(IMAGE), 'Part Three')], plays
     assert log == ['Skip rule: skipped to the next track'], log
     step('cue_track_skipped', recorded=[title for _, title in plays], log=log)

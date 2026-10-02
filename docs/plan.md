@@ -208,9 +208,36 @@ started as the package under `disc-boot`, the integration checks on it.
   binaries soft float and running under qemu-user, a release package
   (1,817,956 bytes) signed with the release key and verified against
   `keys/update-keys`.
-- [ ] Guest acceptance of the package on the boot image, once the emulator
-  boots it (snowsky-disc-boot, stage 2), then the two-package acceptance with
-  diskOS's UI.
+- [x] Step 4, the server's own guest (2026-10-03): `scripts/emulator.py` is
+  now snowsky-disc-boot's `scripts/guest.py` with this repository's record
+  (`work/guest.json`): the boot layer's image (`boot-image-ff4c801`) on a
+  stock-init guest of the emulator at `d7f1b9b`, the debug package of
+  `build/mips` staged on the card and installed with Play, ports 7870 and
+  7871 on host loopback; `restart-service` ends the gateway's process and
+  boot starts it again. The combined images' stack went with its workarounds
+  (the guest-side supervisor, the battery overlay, the padded card, the
+  all-zero serial number written by hand, `stop-service`, the
+  `self_recovery`, `idle_supervision`, `offline` and `package_guest`
+  scenarios); the checks take their port and authority from one module and
+  find processes by name. On the guest: the core flow (media prepared,
+  native smoke, coexistence, handover), `--gateway`, `--history` (the
+  restart through boot), `--store`, `--trash`, `--audio`, `--about` (no app:
+  `/` leads to the manager), `--cue`, `--lists`, `--lifecycle` (stock's watch
+  loop brought the pair back in 7 s, the gateway kept its process),
+  `--transitions` (display, network loss and recovery, Power off by stock and
+  power-on), `--soak` (20 cycles over 600 s, at most 15 threads, 11
+  descriptors, 21,916 KiB), `test-mips.py` (38 conformance tests against
+  `build/mips` in the guest's root) and `tests/integration/manager_guest.py`:
+  an app installed, chosen and removed, 507 on a nearly full card, the
+  server's update (a test key made for the run) uploaded, activated,
+  confirmed after 186 s and rolled back, stock's processes unchanged
+  throughout. The soak's thread ceiling is now 16 (the manager's context
+  adds three threads); the worker counts stay an open item below.
+- [ ] The two-package acceptance with diskOS's UI (snowsky-disc-boot,
+  stage 3).
+- [ ] The boot without a network on the guest, with the emulator's
+  `NETWORK=isolated` (the combined images' offline scenario used a private
+  namespace of its own).
 
 ## Carried over
 
@@ -226,7 +253,4 @@ started as the package under `disc-boot`, the integration checks on it.
 ## Later
 
 - The public repository (default branch `2.x`) with its Actions.
-- The guest wrapper's workarounds go once the emulator absorbs them (its
-  handoff for the boot layer's work): the power-request supervisor, the
-  battery overlay, the card's headroom, manual USB power, the all-zero
-  serial number and the offline namespace.
+

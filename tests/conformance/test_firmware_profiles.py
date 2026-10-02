@@ -83,22 +83,34 @@ class FirmwareProfileTests(unittest.TestCase):
         profiles.require_scenario(future, 'smoke')
         with self.assertRaises(ValueError):profiles.require_scenario(future, 'idle')
 
-    def test_compose_passes_recorded_version_without_docker(self):
-        future = self.future()
-        state = {'id':'test', 'firmware':'/fixture/ota', 'image':'test-image',
-                 'sd':'/fixture/sd', 'reference':'/fixture/reference'}
-        with patch.object(emulator, 'state_profile', return_value=future), patch.object(emulator, 'run') as run:
-            emulator.compose(state, 'ps')
-            self.assertEqual(run.call_args.kwargs['env']['FW_VERSION'], future['version'])
+    def test_the_guest_is_the_boot_layers_wrapper_with_this_repositorys_record(self):
+        with tempfile.TemporaryDirectory() as temp:
+            boot = Path(temp)
+            (boot/'scripts').mkdir()
+            (boot/'scripts/guest.py').write_text('')
+            with patch.object(emulator, 'BOOT', boot), patch.object(emulator.subprocess, 'run') as run:
+                emulator.guest('power', 'on', '--hold', 'play')
+        args = run.call_args.args[0]
+        self.assertEqual(args[1:], [str(boot/'scripts/guest.py'), '--state', str(emulator.STATE), 'power', 'on', '--hold', 'play'])
 
-    def test_changed_profile_cannot_prevent_teardown_or_bypass_start(self):
-        state = {'id':'test', 'firmware':'/fixture/ota', 'image':'test-image',
-                 'sd':'/fixture/sd', 'reference':'/fixture/reference', 'firmwareVersion':'9.99'}
-        with patch.object(emulator, 'state_profile', side_effect=ValueError('changed')), patch.object(emulator, 'run') as run:
-            with self.assertRaises(ValueError):emulator.compose(state, 'up')
-            with self.assertRaises(ValueError):emulator.compose(state, 'up', cleanup=True)
-            emulator.compose(state, 'down', '--volumes', cleanup=True)
-            self.assertEqual(run.call_args.kwargs['env']['FW_VERSION'], '9.99')
+    def test_up_pins_this_repositorys_profile_in_the_record(self):
+        # The guest's own record names the firmware; the checks also pin this repository's profile.
+        with tempfile.TemporaryDirectory() as temp:
+            state = Path(temp)/'guest.json'
+
+            def guest(*args, capture=False):
+                if args[0] == 'up':
+                    self.assertIn('--publish', args)
+                    self.assertIn(f'platform={emulator.ROOT}', args)
+                    state.write_text(json.dumps({'id': 'test', 'firmwareVersion': self.base['version']}))
+
+            argv = ['emulator.py', 'up', '--reference', '/r', '--image', '/i.bin', '--ota', '/o']
+            with patch.object(emulator, 'STATE', state), patch.object(emulator, 'guest', guest), \
+                 patch.object(emulator, 'install'), patch.object(sys, 'argv', argv):
+                emulator.main()
+            record = json.loads(state.read_text())
+        self.assertEqual(record['firmwareProfileSha256'], profiles.fingerprint(profiles.load_profile(self.base['version'])))
+        self.assertEqual(profiles.state_profile(record), profiles.load_profile(self.base['version']))
 
     def test_guest_selection_does_not_shadow_reference_imports(self):
         spec = importlib.util.spec_from_file_location('selected_test', ROOT/'tests/integration/selected_firmware.py')

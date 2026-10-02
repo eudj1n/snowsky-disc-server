@@ -20,7 +20,7 @@ from guest_checks import stock_processes
 spec = importlib.util.spec_from_file_location('wire', '/platform/tests/conformance/test_service.py')
 wire = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(wire)
-AUTHORITY = '127.0.0.1:17870'
+from guest_checks import AUTHORITY  # noqa: E402
 
 
 def health():

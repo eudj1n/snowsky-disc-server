@@ -19,6 +19,7 @@ sys.path.insert(0, '/platform/tests/conformance')
 sys.path.insert(0, '/platform/tests/integration')
 from test_service import WS  # noqa: E402
 from gateway_mutation import AUTHORITY, PORT, call, wait_event  # noqa: E402
+from guest_checks import guest_processes  # noqa: E402
 from scripts import disc_database  # noqa: E402
 
 DATABASE = Path('/tmp/sdcard/.disc/disc.db')
@@ -35,10 +36,8 @@ def history():
 def service_card_files():
     """Files on the card the service's process holds open right now."""
     held = []
-    for pid in filter(str.isdigit, os.listdir('/proc')):
+    for pid in guest_processes('disc-service'):
         try:
-            if b'/usr/data/disc-service' not in Path(f'/proc/{pid}/cmdline').read_bytes().split(b'\0'):
-                continue
             for fd in os.listdir(f'/proc/{pid}/fd'):
                 target = os.readlink(f'/proc/{pid}/fd/{fd}')
                 if '/tmp/sdcard/' in target:
