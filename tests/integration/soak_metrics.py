@@ -1,12 +1,13 @@
 """Firmware-independent acceptance rules for the disposable QEMU soak."""
 MAX_RSS_KIB = 32768
 MAX_RSS_GROWTH_KIB = 4096
+# Five idle under the boot layer (stdin, the log as stdout and stderr, two listeners); a session's
+# two sockets and an in-flight catalog read's two make nine (2026-10-03).
 MAX_FDS = 12
-# The gateway as the boot layer's package (2026-10-03, measured 14 idle): main, the apps' context
-# (master and 8 workers, combined-009), the manager's (master and 2 workers), with one session
-# reader and room for a transient one. The worker counts themselves are an open item (plan,
-# "Resource headroom").
-MAX_THREADS = 16
+# The gateway as the boot layer's package (owner, 2026-10-03): main, the apps' context (master and
+# 16 workers), the manager's (master and 2 workers) and qemu-user's own RCU thread make 22 idle;
+# one session reader and one transient thread on top.
+MAX_THREADS = 24
 SOFT_NOFILE = 64
 MIN_SECONDS = 600
 MIN_CYCLES = 20

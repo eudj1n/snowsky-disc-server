@@ -977,6 +977,7 @@ static int upload_request(struct mg_connection *c, server *s, const char *path, 
     if (s->upload_active) { pthread_mutex_unlock(&s->lock); return error(c, 503, "Another upload is active\n"); }
     s->upload_active = 1; pthread_mutex_unlock(&s->lock);
     int code = 500, dir = open(root, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC), fd = -1;
+    char *buffer = NULL;
     char temp[64] = "", name[256] = "";
     const char *rel = path + 7 + plen;
     if (dir < 0) { code = error(c, 503, "Upload root unavailable\n"); goto out; }
@@ -1007,9 +1008,12 @@ static int upload_request(struct mg_connection *c, server *s, const char *path, 
     snprintf(temp, sizeof(temp), ".disc-upload-%08x-%lld.part", h, monotonic_ms());
     fd = openat(dir, temp, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0644);
     if (fd < 0) { code = error(c, 503, "Cannot stage upload\n"); goto out; }
-    char buffer[65536]; size_t received = 0;
+    /* On the heap: a worker's stack keeps every page it ever touched, for all its workers' life. */
+    enum { UPLOAD_CHUNK = 65536 };
+    buffer = malloc(UPLOAD_CHUNK); size_t received = 0;
+    if (!buffer) { code = error(c, 503, "Out of memory\n"); goto out; }
     while (received < declared && !stopping) {
-        size_t want = declared - received < sizeof(buffer) ? declared - received : sizeof(buffer);
+        size_t want = declared - received < UPLOAD_CHUNK ? declared - received : UPLOAD_CHUNK;
         int n = mg_read(c, buffer, want);
         if (n <= 0) break;
         for (size_t written = 0; written < (size_t)n;) {
@@ -1046,6 +1050,7 @@ static int upload_request(struct mg_connection *c, server *s, const char *path, 
                                       replaced ? "true" : "false");
     code = n > 0 && (size_t)n < sizeof(json) ? response(c, 201, "application/json; charset=utf-8", json, (size_t)n) : error(c, 500, "Reply too long\n");
 out:
+    free(buffer);
     if (fd >= 0) close(fd);
     if (temp[0] && dir >= 0) unlinkat(dir, temp, 0);
     if (dir >= 0) close(dir);
@@ -2664,7 +2669,13 @@ static int service_main(int argc, char **argv) {
      * page's files and the API (with four, a page chunk waited more than 5 s behind covers). */
     /* CivetWeb's own CORS is off: by default it answered any preflight with "*" before the
      * Host and Origin checks; preflight() answers only a listed origin (2026-09-30). */
-    const char *options[] = {"listening_ports", bind, "num_threads", "8", "max_request_size", "8192", "request_timeout_ms", "3000", "websocket_timeout_ms", "2000", "enable_websocket_ping_pong", "yes", "enable_keep_alive", "no", "enable_directory_listing", "no",
+    /* Sixteen workers (2026-10-03, within the owner's twelve to sixteen; eight in combined-009, four
+     * before), as twelve would not cover one browser. Each connection holds one
+     * while it lasts, and the longest are bounded by their slots: the control channel, two audio
+     * streams, two media reads, an upload and the catalog stream, seven in all. A browser on weak
+     * Wi-Fi loads up to six files of the page at once, each held while it trickles; with the seven
+     * that makes thirteen, and three remain for a second client's API calls. */
+    const char *options[] = {"listening_ports", bind, "num_threads", "16", "max_request_size", "8192", "request_timeout_ms", "3000", "websocket_timeout_ms", "2000", "enable_websocket_ping_pong", "yes", "enable_keep_alive", "no", "enable_directory_listing", "no",
                              "access_control_allow_origin", "", "access_control_allow_methods", "", "access_control_allow_headers", "", NULL};
     struct mg_callbacks callbacks = {0}; callbacks.connection_close = release;
     mg_init_library(0);

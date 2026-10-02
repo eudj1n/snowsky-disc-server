@@ -347,6 +347,42 @@ class GatewayTests(unittest.TestCase):
             peer.close()
         ws.close()
 
+    def test_the_page_answers_while_the_long_requests_and_a_browsers_downloads_hold_workers(self):
+        # Sixteen workers (owner, 2026-10-03): the control channel, two audio streams, two media reads and
+        # one browser loading six files of the page over weak Wi-Fi hold eleven at once; the page, its files,
+        # the API and the manager still answer at once (with eight they waited for a stalled download).
+        (self.source/'big.js').write_bytes(b'//' + b'x' * (3 * 1024 * 1024) + b'\n')
+        album = self.card/'Busy'; album.mkdir()
+        (album/'a.flac').write_bytes(flac_file({}))
+        (album/'b.flac').write_bytes(b'fLaC' + b'\0' * (8 * 1024 * 1024))
+        www, _ = self.publish(); self.start(www)
+        ws = self.session()
+        held = []
+
+        def hold(path):
+            peer = socket.create_connection(('127.0.0.1', self.port))
+            peer.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 4096)
+            peer.sendall(f'GET {path} HTTP/1.1\r\nHost: {self.authority}\r\n\r\n'.encode())
+            held.append(peer)
+
+        for kind, name in (('audio', 'b.flac'), ('audio', 'b.flac'), ('cover', 'a.flac'), ('cover', 'a.flac')):
+            hold(f'/api/media/{kind}' + quote(str(album/name), safe='/'))
+        for _ in range(6):
+            hold('/big.js')
+        time.sleep(1)  # every request is under way and none is taken by its client
+        try:
+            for path in ('/', '/app.js', '/api/health', '/api/apps'):
+                started = time.monotonic()
+                self.assertEqual(self.http('GET', path)[0], 200)
+                self.assertLess(time.monotonic() - started, 1.5, path)
+            started = time.monotonic()
+            self.assertEqual(self.manager('GET', '/api/about')[0], 200)
+            self.assertLess(time.monotonic() - started, 1.5, 'the manager has workers of its own')
+        finally:
+            for peer in held:
+                peer.close()
+            ws.close()
+
     def test_media_reads_mp3_tags_covers_lyrics_and_durations(self):
         www, _ = self.publish(); self.start(www)
         album = self.card/'Mp3'; album.mkdir()

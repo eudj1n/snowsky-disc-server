@@ -125,16 +125,20 @@ static int make_parents(const char *root, const char *relative) {
 
 /* The app's folder and its entries from the zip's central directory. */
 static int read_directory(int fd, off_t size, entry **entries, int *count, char name[DISC_APP_NAME_MAX + 1], char *problem, size_t capacity) {
-    unsigned char tail[65557];
-    size_t span = size < (off_t)sizeof(tail) ? (size_t)size : sizeof(tail);
-    if (size < 22 || pread_all(fd, tail, span, size - (off_t)span)) return refuse(problem, capacity, DISC_APP_REFUSED, "Not a zip archive");
+    /* The end of the central directory with the longest comment; on the heap (a worker's stack keeps its pages). */
+    enum { TAIL = 65557 };
+    unsigned char *tail = malloc(TAIL);
+    size_t span = size < (off_t)TAIL ? (size_t)size : TAIL;
+    if (!tail) return refuse(problem, capacity, DISC_APP_FAILED, "Out of memory");
+    if (size < 22 || pread_all(fd, tail, span, size - (off_t)span)) { free(tail); return refuse(problem, capacity, DISC_APP_REFUSED, "Not a zip archive"); }
     long eocd = -1;
     for (long i = (long)span - 22; i >= 0; i--)
         if (le32(tail + i) == 0x06054b50) { eocd = i; break; }
-    if (eocd < 0) return refuse(problem, capacity, DISC_APP_REFUSED, "Not a zip archive");
+    if (eocd < 0) { free(tail); return refuse(problem, capacity, DISC_APP_REFUSED, "Not a zip archive"); }
     const unsigned char *e = tail + eocd;
     uint16_t disk = le16(e + 4), start = le16(e + 6), here = le16(e + 8), total = le16(e + 10);
     uint32_t cd_size = le32(e + 12), cd_offset = le32(e + 16);
+    free(tail);
     if (disk || start || here != total || total == 0xffff || cd_size == 0xffffffffu || cd_offset == 0xffffffffu)
         return refuse(problem, capacity, DISC_APP_REFUSED, "Split or zip64 archives are not supported");
     if (total > ENTRIES_MAX || (off_t)cd_offset + cd_size > size || cd_size > 4u * 1024 * 1024)

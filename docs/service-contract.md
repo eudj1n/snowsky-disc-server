@@ -948,7 +948,16 @@ back if a later record in the same message is invalid. There is no mutation path
 
 The socket reader and WS receiver have independent bounded FiiO buffers.
 Maximum application session storage is about 192 KiB plus library/worker stacks.
-Eight HTTP workers (combined-009); 8 KiB request headers; TCP connect/write deadlines 3 seconds;
+Sixteen HTTP workers on the apps' port (2026-10-03, within the owner's
+twelve to sixteen; eight in combined-009, four before) and two on the
+manager's. A connection holds a
+worker while it lasts; the longest ones are bounded by their slots (the
+control channel, two audio streams, two media reads, one upload, one catalog
+stream: seven), a browser on weak Wi-Fi loads up to six files of the page at
+once, and three workers remain for a second client's API calls. With eight,
+the page waited 9 s behind a stalled download (`test_gateway`). Large
+per-request buffers live on the heap, so a worker's stack stays small for
+its whole life. 8 KiB request headers; TCP connect/write deadlines 3 seconds;
 outgoing HTTP uses the patched 3-second total deadline, including response body.
 Streaming downstream writes share the request's remaining budget. Buffered
 catalog storage is at most 256 KiB plus one overflow byte; stream storage is 8 KiB.

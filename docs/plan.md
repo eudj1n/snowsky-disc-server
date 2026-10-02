@@ -261,6 +261,26 @@ started as the package under `disc-boot`, the integration checks on it.
   ceiling of 12 threads is reached; the owner expected twelve or sixteen
   workers. New bounds, shared threads where possible, and a measurement on
   the guest and on the player (snowsky-disc-web plan, "Resource headroom").
+  Host and guest part done (2026-10-03; the owner asked for twelve or
+  sixteen, sixteen chosen as twelve would not cover one browser): the apps' port has
+  16 workers, the manager's 2. The count follows from what holds a worker:
+  the slot-bounded long requests (control channel, two audio streams, two
+  media reads, an upload, the catalog stream: seven) and one browser's six
+  parallel downloads of the page over weak Wi-Fi make thirteen; twelve would
+  not cover one browser, sixteen leaves three for a second client. A new
+  `test_gateway` case holds eleven (the channel, the four media slots, six
+  stalled downloads of a 3 MiB file): with eight workers the page answered
+  after 8.99 s, the delay seen in combined-009; with sixteen at once. The two
+  64 KiB buffers that sat on workers' stacks (an upload's chunk, a zip's
+  directory tail) moved to the heap, so idle workers keep small stacks. The
+  soak's ceiling is 24 (22 threads idle on the guest with qemu-user's own).
+  On the guest (boot image `368b0bf`): the core flow, and the ten-minute
+  soak over 20 cycles at most 23 threads and 7 descriptors, RSS 23,052 →
+  23,340 KiB (qemu-user's, not the player's). The first soak run found a
+  boot defect: every package started with four descriptors of the boot
+  program's, the boot log among them (fixed in snowsky-disc-boot
+  `368b0bf`); the gateway now has 5 idle. The player's measurement waits for
+  the package on the player (stage 4 of snowsky-disc-boot).
 
 ## Later
 
