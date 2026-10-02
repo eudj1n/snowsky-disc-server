@@ -106,9 +106,10 @@ signature over `package.json`, its length (u32, little-endian, at most
 64 KiB), `package.json` itself, then every listed file's bytes in the
 manifest's order. `package.json` lists each file's size, SHA-256 and mode,
 so the signature covers the whole package. The gateway trusts the public
-keys its own package carries (`keys/update-keys`, `--update-keys`); a
-package built without keys takes no updates over the network, and neither
-does a gateway outside the boot layer.
+keys its own package carries (`keys/update-keys`, `--update-keys`): the
+owner's release key unless the package was built with others; a package
+built without keys takes no updates over the network, and neither does a
+gateway outside the boot layer.
 
 - `GET /api/update` → `{"available", "why", "running": {name, version,
   state, confirmed} | null, "previous": {name, version} | null, "staged":

@@ -10,10 +10,16 @@ file ($DISC_BOOT_DATA/server.env: ports, the app served at "/") from the boot
 layer's environment. Boot supervises the package, so there is no --supervise,
 no image identity file and no card switch (its modes replace .disc/disabled).
 
-With --update-keys the package carries the public keys it trusts for the
-server's updates through the application manager (keys/update-keys); with
---sign-key it is also written as a signed .update file (scripts/update_file.py).
-A package without keys takes no updates over the network.
+The package carries the public keys it trusts for the server's updates
+through the application manager: the owner's release key (keys/update-keys)
+unless --update-keys names others; --no-update-keys builds one that takes no
+updates over the network. With --sign-key it is also written as a signed
+.update file (scripts/update_file.py).
+
+Two variants of the same build (owner, 2026-10-02): a release package holds
+build/mips/disc-service-release, without debug information, and refuses a
+binary that has it; --debug packages build/mips/disc-service as built, with
+"-debug" in its version, for checks before a release and for analysing one.
 """
 import argparse
 import datetime
@@ -23,6 +29,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import struct
 import subprocess
 import sys
 
@@ -34,6 +41,7 @@ import app_bundle  # noqa: E402
 import update_file  # noqa: E402
 
 NAME = 'disc-server'
+UPDATE_KEYS = ROOT/'keys/update-keys'
 CARD = '$DISC_BOOT_CARD'
 SLOT = '$DISC_BOOT_SLOT'
 SAFE = re.compile(r'^[A-Za-z0-9_./:@+=-]+$')
@@ -100,15 +108,39 @@ def start_script(args):
     return '\n'.join(lines) + '\n'
 
 
+def debug_sections(path):
+    """The names of an ELF32 file's debug sections (.debug_*, .zdebug_*)."""
+    data = Path(path).read_bytes()
+    if len(data) < 52 or data[:4] != b'\x7fELF':
+        return []
+    shoff, = struct.unpack_from('<I', data, 32)
+    size, count, names = struct.unpack_from('<HHH', data, 46)
+    if not shoff or not count or size != 40 or names >= count or shoff + count * size > len(data):
+        return []
+    table = struct.unpack_from('<10I', data, shoff + names * size)
+    strings = data[table[4]:table[4] + table[5]]
+    found = []
+    for i in range(count):
+        name_at = struct.unpack_from('<I', data, shoff + i * size)[0]
+        name = strings[name_at:strings.find(b'\0', name_at)].decode('ascii', 'replace')
+        if name.startswith(('.debug', '.zdebug')):
+            found.append(name)
+    return found
+
+
 def default_version():
     commit = subprocess.run(['git', 'rev-parse', '--short=7', 'HEAD'], cwd=ROOT, capture_output=True, text=True).stdout.strip() or 'unknown'
     dirty = subprocess.run(['git', 'diff', '--quiet', 'HEAD', '--', 'device', 'firmware', 'scripts'], cwd=ROOT).returncode != 0
     return f'{datetime.date.today():%Y.%m.%d}-{commit}' + ('+changes' if dirty else '')
 
 
-def build(binary, output, version=None, engineering=False, profile_version=None, arch=None, port=None, manager_port=None,
-          update_keys=None, sign_key=None, serial_file=None):
+def build(binary=None, output=None, version=None, engineering=False, profile_version=None, arch=None, port=None, manager_port=None,
+          update_keys=UPDATE_KEYS, sign_key=None, serial_file=None, debug=False):
     package = boot_module('boot_package', 'scripts/package.py')
+    binary = binary or ROOT/'build/mips'/('disc-service' if debug else 'disc-service-release')
+    if not debug and debug_sections(binary):
+        raise ValueError(f'{binary} has debug information; a release package takes build/mips/disc-service-release '
+                         '(or build with --debug)')
     arch = arch or package.ARCH
     profile = load_profile(profile_version)
     binary, output = Path(binary), Path(output)
@@ -120,6 +152,8 @@ def build(binary, output, version=None, engineering=False, profile_version=None,
     version = version or default_version()
     if engineering:
         version += '-engineering'
+    if debug:
+        version += '-debug'
     folder = output/NAME
     (folder/'bin').mkdir(parents=True)
     (folder/'catalog').mkdir()
@@ -139,7 +173,7 @@ def build(binary, output, version=None, engineering=False, profile_version=None,
     package.check(folder, 'service', profile['version'], arch=arch)
     archive = package.zip_package(folder, output/f'{NAME}-{version}.zip')
     signed = update_file.pack(folder, sign_key, output/f'{NAME}-{version}.update') if sign_key else None
-    return dict(name=NAME, version=version, engineering=engineering, arch=arch, folder=str(folder),
+    return dict(name=NAME, version=version, engineering=engineering, debug=debug, arch=arch, folder=str(folder),
                 files=len(manifest['files']), bytes=sum(f['size'] for f in manifest['files'].values()),
                 zip=archive['zip'], zipSha256=archive['sha256'], profile=profile['version'],
                 profileSha256=fingerprint(profile), updateKeys=bool(update_keys),
@@ -148,7 +182,8 @@ def build(binary, output, version=None, engineering=False, profile_version=None,
 
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument('--binary', type=Path, default=ROOT/'build/mips/disc-service')
+    p.add_argument('--binary', type=Path, help='Defaults to build/mips/disc-service-release, or disc-service with --debug')
+    p.add_argument('--debug', action='store_true', help='The gateway with its debug information, "-debug" in the version')
     p.add_argument('--output', type=Path, required=True, help='A fresh folder for the package folder and its zip')
     p.add_argument('--version', help='Defaults to <date>-<commit>')
     p.add_argument('--engineering', action='store_true', help="The engineering variant: the card's commands and raw mode")
@@ -156,11 +191,13 @@ def main():
     p.add_argument('--arch', help='Only for test packages (default: the player)')
     p.add_argument('--port', type=int, help='Only for test packages (default: the settings file, else 7870)')
     p.add_argument('--manager-port', type=int, help='Only for test packages (default: the settings file, else 7871)')
-    p.add_argument('--update-keys', type=Path, help='Public keys the package trusts for its updates (update_file.py public)')
+    keys = p.add_mutually_exclusive_group()
+    keys.add_argument('--update-keys', type=Path, default=UPDATE_KEYS, help="Public keys the package trusts for its updates (default: the owner's)")
+    keys.add_argument('--no-update-keys', dest='update_keys', action='store_const', const=None, help='A package that takes no updates over the network')
     p.add_argument('--sign-key', type=Path, help='Also write the package as a .update file signed with this key')
     args = p.parse_args()
     print(json.dumps(build(args.binary, args.output, args.version, args.engineering, args.profile, args.arch, args.port,
-                           args.manager_port, args.update_keys, args.sign_key), indent=2))
+                           args.manager_port, args.update_keys, args.sign_key, debug=args.debug), indent=2))
 
 
 if __name__ == '__main__':

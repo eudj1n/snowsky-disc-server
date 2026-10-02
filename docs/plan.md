@@ -195,6 +195,19 @@ started as the package under `disc-boot`, the integration checks on it.
   refused zip with the rule's words, a wrong serial number; no horizontal
   scrolling at 390 px. The MIPS gateway is 4,963,140 bytes. The guest check
   comes with step 4.
+- [x] The release key and two build variants (owner, 2026-10-02): the
+  owner's Ed25519 release key was created (secret half outside the
+  repositories, public half `keys/update-keys`, carried by every package by
+  default); `scripts/build.sh mips` also writes the stripped
+  `disc-service-release` (1,779,408 bytes against 5,311,344 with debug
+  information), release packages take it and refuse a binary with debug
+  sections, `build_package.py --debug` packages the other with `-debug` in
+  its version: debug packages for the checks until the first runs on the
+  player, then releases. Evidence: `test_package_build` (the default keys, a
+  package without keys, the refusal and the debug variant), both MIPS
+  binaries soft float and running under qemu-user, a release package
+  (1,817,956 bytes) signed with the release key and verified against
+  `keys/update-keys`.
 - [ ] Guest acceptance of the package on the boot image, once the emulator
   boots it (snowsky-disc-boot, stage 2), then the two-package acceptance with
   diskOS's UI.

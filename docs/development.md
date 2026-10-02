@@ -86,9 +86,18 @@ out and packs it with snowsky-disc-boot's `scripts/package.py` (found through
 
 ```sh
 bash scripts/build.sh mips
-python3 scripts/build_package.py --output work/package-001            # the product variant
-python3 scripts/build_package.py --output work/package-002 --engineering  # the card's commands and raw mode
+python3 scripts/build_package.py --output work/package-001            # the product variant, a release
+python3 scripts/build_package.py --output work/package-002 --debug    # the same with debug information
+python3 scripts/build_package.py --output work/package-003 --engineering  # the card's commands and raw mode
 ```
+
+One MIPS build gives two binaries (owner, 2026-10-02):
+`build/mips/disc-service` as built, with debug information (about 5.3 MB),
+and `build/mips/disc-service-release`, stripped (about 1.8 MB), both checked
+for soft float. A release package takes the stripped one and refuses a binary
+with debug sections; `--debug` packages the other with `-debug` in its
+version, for the checks before a release (the guest, the first runs on the
+player) and for analysing a release's crash with the same build.
 
 The package holds `bin/disc-service`, the reviewed catalogs in `catalog/`
 and `bin/run`, its entry: a shell script that starts the gateway with the
@@ -107,19 +116,20 @@ Stage it on a card for the recovery with Play with snowsky-disc-boot's
 ### Signed updates
 
 The manager takes a release as a signed `.update` stream
-(`docs/service-contract.md`, "The server's updates"). The signing key stays
-outside every repository; its public half goes into the packages that
-should accept what it signs:
+(`docs/service-contract.md`, "The server's updates"). The owner's release key
+was created on 2026-10-02 (`update_file.py keygen`); its secret half is
+`~/.config/snowsky-disc/update.key` on the owner's computer (0600, outside
+every repository), its public half `keys/update-keys`, which every package
+carries unless built with `--update-keys <file>` or `--no-update-keys`:
 
 ```sh
-python3 scripts/update_file.py keygen --output ~/.config/snowsky-disc/update.key   # once; prints the public key
-python3 scripts/update_file.py public --key ~/.config/snowsky-disc/update.key > work/update-keys
-python3 scripts/build_package.py --output work/package-003 \
-  --update-keys work/update-keys --sign-key ~/.config/snowsky-disc/update.key
-python3 scripts/update_file.py inspect work/package-003/disc-server-*.update --keys work/update-keys
+python3 scripts/build_package.py --output work/package-004 --sign-key ~/.config/snowsky-disc/update.key
+python3 scripts/update_file.py inspect work/package-004/disc-server-*.update --keys keys/update-keys
 ```
 
-A package built without `--update-keys` takes no updates over the network.
+A package built with `--no-update-keys` takes no updates over the network.
+A new key is added to `keys/update-keys` and shipped in a release signed by
+the old one before it signs anything itself.
 `build/host/update-tool` stages a stream as the gateway does, without HTTP
 (`test_update`); `scripts/ed25519.py` is RFC 8032's reference code, checked
 against its vectors, and the gateway verifies with Monocypher. The same rule

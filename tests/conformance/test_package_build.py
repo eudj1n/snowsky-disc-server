@@ -43,6 +43,28 @@ def soft_float_elf(path, fp_abi=3):
     return path
 
 
+def with_sections(path, names):
+    """soft_float_elf with section headers naming the given sections (and the names' own table)."""
+    soft_float_elf(path)
+    data = bytearray(path.read_bytes())
+    table = b'\0'
+    offsets = []
+    for name in [*names, '.shstrtab']:
+        offsets.append(len(table))
+        table += name.encode() + b'\0'
+    table_at = len(data)
+    data += table + b'\0' * (-len(table) % 4)
+    shoff = len(data)
+    data += b'\0' * 40  # the null section
+    for at in offsets[:-1]:
+        data += struct.pack('<10I', at, 1, 0, 0, 0, 0, 0, 0, 1, 0)
+    data += struct.pack('<10I', offsets[-1], 3, 0, 0, table_at, len(table), 0, 0, 1, 0)
+    struct.pack_into('<I', data, 32, shoff)
+    struct.pack_into('<HHH', data, 46, 40, len(names) + 2, len(names) + 1)
+    path.write_bytes(data)
+    return path
+
+
 def free_port():
     with socket.socket() as s:
         s.bind(('127.0.0.1', 0))
@@ -69,7 +91,9 @@ class PackageBuildTests(unittest.TestCase):
         self.assertEqual((manifest['name'], manifest['version'], manifest['role'], manifest['entry'], manifest['arch']),
                          ('disc-server', '2026.10.02-test', 'service', 'bin/run', 'mips32el-linux-static'))
         self.assertEqual(sorted(manifest['files']), ['bin/disc-service', 'bin/run', 'catalog/commands.json', 'catalog/compatibility.json',
-                                                     'catalog/hosted.json', 'catalog/queries.json', 'catalog/store.json'])
+                                                     'catalog/hosted.json', 'catalog/queries.json', 'catalog/store.json', 'keys/update-keys'])
+        # The owner's release key, so that the package takes the updates it signs.
+        self.assertEqual((folder/'keys/update-keys').read_bytes(), (ROOT/'keys/update-keys').read_bytes())
         self.package.check(Path(result['zip']).parent/'disc-server', 'service', '2.57')
         with tempfile.TemporaryDirectory() as temp:
             self.package.check(self.package.source_folder(result['zip'], temp), 'service', '2.57')
@@ -78,7 +102,7 @@ class PackageBuildTests(unittest.TestCase):
         self.assertIn('exec "$DISC_BOOT_SLOT/bin/disc-service"', script)
         options = self.options(script)
         self.assertEqual(options, ['--listen', '--upstream', '--settings', '--ready-file', '--boot-status', '--update-slot',
-                                   '--update-work', '--update-request', '--boot-program', '--apps', '--sd-mount',
+                                   '--update-work', '--update-request', '--boot-program', '--update-keys', '--apps', '--sd-mount',
                                    '--sd-source', '--commands-profile-sha256', '--catalog', '--card-catalog', '--data-root',
                                    '--current-lyrics', '--serial-file', '--battery-dir', '--asound-dir', '--player-process',
                                    '--mdns-name', '--database', '--trash', '--internal-lists', '--external-lists'])
@@ -92,8 +116,24 @@ class PackageBuildTests(unittest.TestCase):
         self.assertEqual(subprocess.run(['sh', '-n', str(folder/'bin/run')]).returncode, 0)
         self.assertIn('"--update-slot" "$DISC_BOOT_INACTIVE"', script)
         self.assertIn('"--boot-program" "$DISC_BOOT_PROGRAM"', script)
-        self.assertNotIn('--update-keys', script, 'a package without keys takes no updates over the network')
+        self.assertIn('"--update-keys" "$DISC_BOOT_SLOT/keys/update-keys"', script)
         self.assertIsNone(result['update'])
+        self.assertFalse(result['debug'])
+        # Without keys, no updates over the network.
+        bare = self.builder.build(soft_float_elf(self.root/'disc-service'), self.root/'bare', version='1', update_keys=None)
+        self.assertNotIn('--update-keys', (Path(bare['folder'])/'bin/run').read_text())
+        self.assertFalse((Path(bare['folder'])/'keys').exists())
+
+    def test_a_release_holds_no_debug_information_and_a_debug_build_says_so(self):
+        debug = with_sections(self.root/'disc-service', ['.text', '.debug_info', '.debug_line'])
+        with self.assertRaisesRegex(ValueError, 'has debug information'):
+            self.builder.build(debug, self.root/'release', version='1')
+        self.assertFalse((self.root/'release').exists())
+        self.assertEqual(self.builder.debug_sections(debug), ['.debug_info', '.debug_line'])
+        result = self.builder.build(debug, self.root/'debug', version='1', debug=True)
+        self.assertEqual((result['version'], result['debug']), ('1-debug', True))
+        stripped = with_sections(self.root/'stripped', ['.text', '.MIPS.abiflags'])
+        self.assertEqual(self.builder.build(stripped, self.root/'release', version='1')['version'], '1')
 
     def test_a_package_with_update_keys_carries_them_and_is_signed(self):
         key = self.root/'update.key'

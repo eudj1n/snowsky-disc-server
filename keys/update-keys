@@ -1,0 +1,4 @@
+# Public keys the server package trusts for its updates through the application manager
+# (scripts/update_file.py; docs/service-contract.md, "The server's updates"). The owner's release
+# key, created 2026-10-02; its secret half stays outside every repository.
+e82b742c728845dacd3f152abc53cfbdeeca2880747aab94e63b31fbc5431148
