@@ -1,0 +1,264 @@
+{
+  "schema_version": 1,
+  "api": 1,
+  "version": "2.57",
+  "description": "Reviewed read-only queries over the stock SQLite databases for the DISC gateway data level. Policy as data: the gateway executes only these statements, read-only, with bounded parameters and rows.",
+  "databases": {
+    "sysconfig": "sysconfig.db",
+    "song": "song.db",
+    "theme": "theme.db",
+    "disc": "@disc"
+  },
+  "queries": {
+    "system_settings": {
+      "db": "sysconfig",
+      "sql": "SELECT LANGUAGE, SYS_THEME, THEME_MODE, LOCK_THEME, FONT_SIZE, BATTERY, POWER_SAVE, VOLUME, MAX_VOL, VOL_MODE, MUTE, EQ_TYPE, FILTER_TYPE, DRE_STATUS, SPDIF, BALANCE_VOL, TREBLE, BASS, PLAY_MODE, MEMORY_PLAY, FOLDER_JUMP, PLAY_GAP, SYS_REPLAY_GAIN, WORK_MODE, INPUT_MODE, USB_MODE, BT_CODEC, BT_STATUS, WIFI_STATUS, NETWORK_MODE, ARTIST_CLASS_TYPE, TRACK_DISPLAY, LIST_OPER_MODE, ONLINE_COVER, ONLINE_LRC, SCREEN_ROT, LIGHT_LEVEL, LIGTH_ON_TIME, OS_MODE, DSD_MODE, DSD_DECODE, OUT_DEV, DEVICE_OUTPUT, CHARGE_PROTECT, AUTO_TIME, KEY_SINGLE_CLICK_SLE, KEY_DOUBLE_CLICK_SLE, KEY_LONG_PRESS_SLE FROM SYSCONFIG WHERE ID = 1",
+      "params": [],
+      "max_rows": 1,
+      "enums": {
+        "LANGUAGE": [
+          "zh-Hans",
+          "zh-Hant",
+          "en",
+          "ja",
+          "ko",
+          "es",
+          "it",
+          "de",
+          "fr",
+          "ru"
+        ],
+        "WORK_MODE_INPUT_MODE": "see reference remote-modes-themes.md; not a simple index"
+      },
+      "notes": "One row of stock settings. LANGUAGE indexes the stock menu order; index 2 (English) confirmed in the emulator, the other positions follow the mq_ui menu table. Live volume/mode/state still come from the protocol; this row is what stock persisted.",
+      "evidence": "stock V2.57 schema observed in the disposable guest (/usr/data/fiio/db); language order from the mq_ui string table (简体中文, 繁體中文, English, 日本語, 한국어, español, Italiano, Deutsch, français, Русский); reference docs/protocol/remote-settings.md and remote-modes-themes.md for VOL_MODE, FILTER_TYPE, WORK_MODE, INPUT_MODE, BT_CODEC"
+    },
+    "library_summary": {
+      "db": "song",
+      "sql": "SELECT (SELECT COUNT(*) FROM SONG) AS tracks, (SELECT COUNT(*) FROM MY_LOVE) AS favorites, (SELECT COUNT(*) FROM CUSTOM_PLAYLIST_INDEX) AS playlists, (SELECT COUNT(*) FROM sqlite_schema WHERE type = 'table' AND name = 'LIST_SONG_0') AS queue_table, (SELECT MAX(ADD_TIME) FROM SONG) AS last_added, (SELECT MAX(ID) FROM SONG) AS last_id",
+      "params": [],
+      "max_rows": 1,
+      "enums": {},
+      "notes": "Cheap change detection for client snapshots: compare tracks/last_added/last_id before paging. queue_table says whether stock's queue table exists: stock drops LIST_SONG_0 when a scan removes a queued file and creates it again at the next play, so the counts never read it.",
+      "evidence": "stock V2.57 schema observed in the disposable guest (/usr/data/fiio/db); "
+    },
+    "tracks": {
+      "db": "song",
+      "sql": "SELECT ID, PATH, NAME, TITLE, ALBUM, ARTIST, ALBUM_ARTIST, GENRE, DISC, TRACK, DURATION, SAMPLE_RATE, BIT_PER_SAMPLE, CHANNELS, BIT_RATE, SONG_MIMETYPE, SONG_PRODUCTION_YEAR, IS_CUE, IS_ISO, IS_DSD, IS_M3U, M3U_PATH, OFFSET, ADD_TIME FROM SONG ORDER BY ID LIMIT ? OFFSET ?",
+      "params": [
+        {
+          "name": "limit",
+          "type": "int",
+          "min": 1,
+          "max": 500
+        },
+        {
+          "name": "offset",
+          "type": "int",
+          "min": 0,
+          "max": 10000000
+        }
+      ],
+      "max_rows": 500,
+      "enums": {},
+      "notes": "Full indexed library with file paths, which protocol catalog pages lack. Positions here are IDs, not stock list positions; selection still needs a fresh protocol read.",
+      "evidence": "stock V2.57 schema observed in the disposable guest (/usr/data/fiio/db); "
+    },
+    "track_by_id": {
+      "db": "song",
+      "sql": "SELECT ID, PATH, NAME, TITLE, ALBUM, ARTIST, ALBUM_ARTIST, GENRE, DISC, TRACK, DURATION, SAMPLE_RATE, BIT_PER_SAMPLE, CHANNELS, BIT_RATE, SONG_MIMETYPE, SONG_PRODUCTION_YEAR, IS_CUE, IS_ISO, IS_DSD, IS_M3U, M3U_PATH, OFFSET, ADD_TIME FROM SONG WHERE ID = ?",
+      "params": [
+        {
+          "name": "id",
+          "type": "int",
+          "min": 1,
+          "max": 2147483647
+        }
+      ],
+      "max_rows": 1,
+      "enums": {},
+      "notes": "",
+      "evidence": "stock V2.57 schema observed in the disposable guest (/usr/data/fiio/db); "
+    },
+    "favorites": {
+      "db": "song",
+      "sql": "SELECT ID, PATH, NAME, TITLE, ALBUM, ARTIST, ALBUM_ARTIST, GENRE, DISC, TRACK, DURATION, SAMPLE_RATE, BIT_PER_SAMPLE, CHANNELS, BIT_RATE, SONG_MIMETYPE, SONG_PRODUCTION_YEAR, IS_CUE, IS_ISO, IS_DSD, IS_M3U, M3U_PATH, OFFSET, ADD_TIME FROM MY_LOVE ORDER BY ID LIMIT ? OFFSET ?",
+      "params": [
+        {
+          "name": "limit",
+          "type": "int",
+          "min": 1,
+          "max": 500
+        },
+        {
+          "name": "offset",
+          "type": "int",
+          "min": 0,
+          "max": 10000000
+        }
+      ],
+      "max_rows": 500,
+      "enums": {},
+      "notes": "Built-in favorites with full metadata; ID order is the stock list order.",
+      "evidence": "stock V2.57 schema observed in the disposable guest (/usr/data/fiio/db); "
+    },
+    "playlists": {
+      "db": "song",
+      "sql": "SELECT ID, LIST_ID, LIST_NAME, M3U_PATH, (SELECT COUNT(*) FROM CUSTOM_PLAYLIST p WHERE p.PLAYLIST_ID = i.LIST_ID) AS tracks FROM CUSTOM_PLAYLIST_INDEX i ORDER BY ID",
+      "params": [],
+      "max_rows": 500,
+      "enums": {},
+      "notes": "Custom playlists; the protocol addresses them by position in LIST_ID order, not by ID.",
+      "evidence": "stock V2.57 schema observed in the disposable guest (/usr/data/fiio/db); "
+    },
+    "playlist_tracks": {
+      "db": "song",
+      "sql": "SELECT PLAYLIST_ID, ID, PATH, NAME, TITLE, ALBUM, ARTIST, ALBUM_ARTIST, GENRE, DISC, TRACK, DURATION, SAMPLE_RATE, BIT_PER_SAMPLE, CHANNELS, BIT_RATE, SONG_MIMETYPE, SONG_PRODUCTION_YEAR, IS_CUE, IS_ISO, IS_DSD, IS_M3U, M3U_PATH, OFFSET, ADD_TIME FROM CUSTOM_PLAYLIST WHERE PLAYLIST_ID = ? ORDER BY ID LIMIT ? OFFSET ?",
+      "params": [
+        {
+          "name": "id",
+          "type": "int",
+          "min": 0,
+          "max": 2147483647
+        },
+        {
+          "name": "limit",
+          "type": "int",
+          "min": 1,
+          "max": 500
+        },
+        {
+          "name": "offset",
+          "type": "int",
+          "min": 0,
+          "max": 10000000
+        }
+      ],
+      "max_rows": 500,
+      "enums": {},
+      "notes": "id is CUSTOM_PLAYLIST_INDEX.LIST_ID (the playlists query counts members the same way); the first list has LIST_ID 0.",
+      "evidence": "stock V2.57 schema observed in the disposable guest (/usr/data/fiio/db); "
+    },
+    "queue": {
+      "db": "song",
+      "sql": "SELECT ID, LIST_ID, POS_ID, PATH, NAME, TITLE, ALBUM, ARTIST, ALBUM_ARTIST, GENRE, DISC, TRACK, DURATION, IS_CUE, IS_ISO, IS_M3U, M3U_PATH, OFFSET, SONG_TYPE, IS_SELECT FROM LIST_SONG_0 ORDER BY ID",
+      "params": [],
+      "max_rows": 1000,
+      "enums": {},
+      "notes": "The active queue as stock persisted it; live position comes from the protocol.",
+      "evidence": "stock V2.57 schema observed in the disposable guest (/usr/data/fiio/db); "
+    },
+    "queue_state": {
+      "db": "song",
+      "sql": "SELECT COUNT(*) AS present FROM sqlite_schema WHERE type = 'table' AND name = 'LIST_SONG_0'",
+      "params": [],
+      "max_rows": 1,
+      "enums": {},
+      "notes": "Whether stock has a current queue: LIST_SONG_0 is dropped when a scan removes a queued file and created again at the next play; read this before queue, which fails while the table is gone.",
+      "evidence": "disposable V2.57 guest, 2026-09-29: a scan after deleting a file of the playing album dropped LIST_SONG_0; queue and the old library_summary answered 503 until playback started (owner's player showed the same)"
+    },
+    "recently_played": {
+      "db": "song",
+      "sql": "SELECT ID, PATH, NAME, TITLE, ALBUM, ARTIST, ALBUM_ARTIST, GENRE, DISC, TRACK, DURATION, PLAY_COUNT, LAST_PLAY_TIME FROM RECORD_SONG ORDER BY LAST_PLAY_TIME DESC LIMIT ?",
+      "params": [
+        {
+          "name": "limit",
+          "type": "int",
+          "min": 1,
+          "max": 500
+        }
+      ],
+      "max_rows": 500,
+      "enums": {},
+      "notes": "Play history with counts, absent from the protocol.",
+      "evidence": "stock V2.57 schema observed in the disposable guest (/usr/data/fiio/db); "
+    },
+    "most_played": {
+      "db": "song",
+      "sql": "SELECT ID, PATH, NAME, TITLE, ALBUM, ARTIST, ALBUM_ARTIST, GENRE, DISC, TRACK, DURATION, PLAY_COUNT, LAST_PLAY_TIME FROM RECORD_SONG ORDER BY PLAY_COUNT DESC, LAST_PLAY_TIME DESC LIMIT ?",
+      "params": [
+        {
+          "name": "limit",
+          "type": "int",
+          "min": 1,
+          "max": 500
+        }
+      ],
+      "max_rows": 500,
+      "enums": {},
+      "notes": "Play history by play count (ties: most recent first), for a \"most played\" order; rows exist only for tracks stock recorded.",
+      "evidence": "stock V2.57 schema observed in the disposable guest (/usr/data/fiio/db); "
+    },
+    "resume_point": {
+      "db": "song",
+      "sql": "SELECT MUSIC_ID, IS_PLAYING, POSITION, IS_CUE, IS_ISO, TRACK, IS_NAS, IS_M3U FROM MEMORY_PLAY",
+      "params": [],
+      "max_rows": 1,
+      "enums": {},
+      "notes": "Stock memory-play record: last track and position in milliseconds.",
+      "evidence": "stock V2.57 schema observed in the disposable guest (/usr/data/fiio/db); "
+    },
+    "peq_presets": {
+      "db": "song",
+      "sql": "SELECT ID, STYLE_PRESET, STYLE_NAME, MASTER_GAIN, PARAMS_JSON FROM PEQ ORDER BY ID",
+      "params": [],
+      "max_rows": 64,
+      "enums": {},
+      "notes": "STYLE_PRESET is the stored preset enum: user slots 1..10 are 11..20 (network 160..169); rows 160..169 may exist with PARAMS_JSON (null). PARAMS_JSON holds the ten bands with gain and Q as strings.",
+      "evidence": "stock V2.57 schema observed in the disposable guest (/usr/data/fiio/db); reference research/docs/reports/peq.md"
+    },
+    "themes": {
+      "db": "theme",
+      "sql": "SELECT ID, POS_ID, NAME, ALIAS, TYPE, USE, IS_SYSTEM, ATTR, SUBCLASS, ALPHA, LOCK_TIME, LOCK_DATE, LOCK_BATTERY, LOCK_ID3, LOCK_MEM_TYPE, FRONT_COLOR, PATH, PREVIEW_PATH FROM CUSTOM_THEME ORDER BY POS_ID",
+      "params": [],
+      "max_rows": 64,
+      "enums": {},
+      "notes": "Wallpaper slots; USE marks the active one.",
+      "evidence": "stock V2.57 schema observed in the disposable guest (/usr/data/fiio/db); reference docs/protocol/remote-modes-themes.md"
+    },
+    "disliked_tracks": {
+      "db": "disc",
+      "sql": "SELECT r.value ->> '$.path' AS path, r.value ->> '$.title' AS title, r.value ->> '$.at' AS disliked_at, (SELECT count(*) FROM plays p WHERE p.path = r.value ->> '$.path') AS plays FROM records r WHERE r.collection = 'disliked' ORDER BY r.value ->> '$.at' DESC, r.id DESC LIMIT ? OFFSET ?",
+      "params": [
+        {
+          "name": "limit",
+          "type": "int",
+          "min": 1,
+          "max": 500
+        },
+        {
+          "name": "offset",
+          "type": "int",
+          "min": 0,
+          "max": 100000
+        }
+      ],
+      "max_rows": 500,
+      "enums": {},
+      "notes": "Disliked tracks (the store's disliked collection) with their plays in the service's history, newest dislike first.",
+      "evidence": "service schema 2 (device/src/database.c) and firmware/store/v2.57.json"
+    },
+    "play_counts": {
+      "db": "disc",
+      "sql": "SELECT path, count(*) AS plays, max(started_at) AS last_started_at FROM plays GROUP BY path ORDER BY plays DESC, last_started_at DESC LIMIT ? OFFSET ?",
+      "params": [
+        {
+          "name": "limit",
+          "type": "int",
+          "min": 1,
+          "max": 1000
+        },
+        {
+          "name": "offset",
+          "type": "int",
+          "min": 0,
+          "max": 100000
+        }
+      ],
+      "max_rows": 1000,
+      "enums": {},
+      "notes": "Plays per file over the whole history the service keeps (the route serves only the newest records).",
+      "evidence": "service schema 1 (device/src/database.c)"
+    }
+  }
+}

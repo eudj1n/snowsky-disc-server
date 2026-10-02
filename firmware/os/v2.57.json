@@ -1,0 +1,33 @@
+{
+ "schema_version": 1,
+ "version": "2.57",
+ "rootfs_sha256": "111e4dd7ee3d7ff91ba7e61181690be7ffd22bd1bbd13ad513f5f015ffb302ae",
+ "battery": {
+  "path": "/sys/class/power_supply/cw221X-bat",
+  "type": "Mains",
+  "attributes": [
+   "capacity",
+   "current_now",
+   "cycle_count",
+   "health",
+   "present",
+   "technology",
+   "temp",
+   "type",
+   "voltage_now"
+  ],
+  "absent": [
+   "online",
+   "status"
+  ]
+ },
+ "asound": {
+  "card": "/proc/asound/card0"
+ },
+ "player": {
+  "process": "mq_player"
+ },
+ "mdns": {
+  "name": "ingenic"
+ }
+}

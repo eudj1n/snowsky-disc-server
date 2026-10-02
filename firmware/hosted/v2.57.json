@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "api": 1,
+  "version": "2.57",
+  "description": "Reviewed pages hosted elsewhere that may use the service from the browser (CORS), each by its exact https origin. Such a page reaches the player only in browsers with Local Network Access, after the user allows local network access, and changes still need the serial number. Policy as data: a page is added or removed with a card catalog, never an image. Without this file only the page on the card uses the service.",
+  "pages": {
+    "github_pages_prototype": {
+      "origin": "https://eudj1n.github.io",
+      "purpose": "The Disc Player prototype on GitHub Pages (2026-09-30). Every project site of the account shares this origin; a site of its own replaces it before any wider use."
+    }
+  }
+}

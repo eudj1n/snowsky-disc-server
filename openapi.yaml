@@ -1,0 +1,893 @@
+openapi: 3.1.0
+info:
+  title: DISC gateway API
+  version: 1.0.0
+  summary: HTTP and WebSocket surface of the native gateway running inside a SNOWSKY DISC player.
+  description: |
+    Contract version `api: 1`. Every bundle published on the SD card declares the
+    `api` it works with in `compatibility.json` (at /api/contract/); the gateway
+    serves `api: 1` today and will report its version in `/api/health` from
+    Stage B. Paths marked `x-stage: B` are planned in the next image and not yet
+    served by the installed engineering build; everything else is live and
+    covered by the conformance suite. The prose contract is
+    `docs/gateway-contract.md`; the stock command surface a client may ask the
+    gateway to forward is the reviewed catalog `firmware/commands/v<version>.json`,
+    published with each bundle as `commands.json`.
+servers:
+  - url: http://{player}:7870
+    variables:
+      player:
+        default: 127.0.0.1
+        description: The player's LAN IPv4 (remote admission) or loopback on the device.
+tags:
+  - name: health
+  - name: catalog
+  - name: bridge
+  - name: static
+  - name: stock
+    description: Planned Stage B proxy of reviewed stock HTTP routes.
+  - name: data
+    description: Planned Stage B read-only data level over the stock SQLite databases.
+  - name: lists
+    description: M3U lists of the service's own on the card (combined-009).
+paths:
+  /api/health:
+    get:
+      tags: [health]
+      summary: Gateway identity, read-only flag, control reservation
+      description: Bodyless GET without a query. Requires the exact Host and, when present, matching Origin.
+      responses:
+        '200':
+          description: Gateway is up; stock reachability is not implied.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Health' }
+        '403': { $ref: '#/components/responses/Rejected' }
+  /api/device:
+    get:
+      tags: [health]
+      summary: Live battery gauge, card space and the open playback stream (next image)
+      description: Bodyless GET without a query. Each part is null when its source is not configured or not readable.
+      responses:
+        '200':
+          description: Device facts
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DeviceFacts' }
+        '403': { $ref: '#/components/responses/Rejected' }
+  /api/about:
+    get:
+      tags: [health]
+      summary: Diagnostics for support (combined-008)
+      description: Bodyless GET without a query. Versions and the source commit, the image's identity, which release serves the page, the card, the database facts, the supervisor's restarts and the newest service messages; no credential, track or user file.
+      responses:
+        '200':
+          description: "{service:{name, version, build, api, uptime, supervised}, image, page:{source, release}, card:{owned}, database:{state, schema, bytes, plays, records, trash, writes:{failed, lastFailure, lastSuccess, reason}}, restarts:[...], log:[{t, m}]}"
+          content:
+            application/json:
+              schema: { type: object, required: [service, image, page, card, database, restarts, log] }
+        '403': { $ref: '#/components/responses/Rejected' }
+        '405': { description: Not a bodyless GET without a query }
+  /api/history:
+    get:
+      tags: [health]
+      summary: The newest plays the service observed and recorded on the card
+      description: Bodyless GET without a query. The newest rows of the plays table in the card database (`.disc/disc.db`, combined-008), oldest first; every row is checked, so an edited database never yields invalid JSON.
+      responses:
+        '200':
+          description: Play history
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PlayHistory' }
+        '403': { $ref: '#/components/responses/Rejected' }
+        '404': { description: No play history configured }
+        '503': { description: The card is away (USB storage mode), or the database is newer or unreadable }
+    post:
+      tags: [health]
+      summary: Record a play a page sounded itself (combined-009)
+      description: |
+        The observer sees only the player's open files; a page that played a card
+        file through the audio route reports the play once it counts (30 s, or
+        half the file after at least 5 s). The service checks an existing music
+        file on the card, 1..86400 seconds and no longer than the file, and the
+        observer's context bounds, stamps the start with its own clock (now minus
+        the seconds) and stores `source` "browser". Needs X-Disc-Token and a fresh
+        X-Disc-Request; no scan wait.
+      parameters:
+        - { name: X-Disc-Token, in: header, required: true, schema: { type: string } }
+        - { name: X-Disc-Request, in: header, required: true, schema: { type: string, pattern: '^[A-Za-z0-9_-]{16,64}$' } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [path, seconds]
+              properties:
+                path: { type: string, description: Absolute card path of a music file }
+                seconds: { type: integer, minimum: 1, maximum: 86400 }
+                title: { type: [string, 'null'], maxLength: 255, description: The CUE track }
+                ctx:
+                  type: object
+                  additionalProperties: false
+                  properties:
+                    type: { type: [integer, 'null'], minimum: 0, maximum: 255 }
+                    count: { type: integer, minimum: 0, maximum: 20000 }
+                    hash: { type: [string, 'null'], pattern: '^[0-9a-f]{16}$' }
+                    album: { type: [string, 'null'] }
+                    artist: { type: [string, 'null'] }
+                    genre: { type: [string, 'null'] }
+                    folder: { type: [string, 'null'] }
+      responses:
+        '201': { description: "{id, t, s, source: browser}" }
+        '400': { description: Not a music file on the card, too long, or a field outside its bounds }
+        '403': { description: No credential or request ID }
+        '404': { description: No such music file, or no database configured }
+        '409': { description: Request ID already used }
+        '411': { description: No body }
+        '503': { description: The card is away, or the play could not be written (the diagnostics say why) }
+  /api/lists:
+    get:
+      tags: [lists]
+      summary: The scopes of M3U lists and their folders (combined-009)
+      responses:
+        '200': { description: "{scopes:{internal, external}}: internal lists are the service's own, hidden in .disc/playlists; external ones are in Playlists/, where the player's file browser shows them" }
+        '404': { description: No lists configured }
+  /api/lists/{scope}:
+    get:
+      tags: [lists]
+      summary: The lists of one scope, by name
+      description: Bodyless GET without a query; stock plays a list by its `path` through folder play (`0101`, list type `0004`).
+      parameters:
+        - { in: path, name: scope, required: true, schema: { type: string, enum: [internal, external] } }
+      responses:
+        '200': { description: "{folder, lists:[{name, path, bytes, modified}], count, truncated, max, maxEntries}" }
+        '404': { description: No such scope, or not configured }
+        '503': { description: The card is away or the folder cannot be read }
+  /api/lists/{scope}/{name}:
+    get:
+      tags: [lists]
+      summary: One list read back, its entries as absolute card paths
+      parameters:
+        - { in: path, name: scope, required: true, schema: { type: string, enum: [internal, external] } }
+        - { in: path, name: name, required: true, schema: { type: string, maxLength: 96 } }
+      responses:
+        '200': { description: "{name, path, bytes, modified, entries:[...], count}" }
+        '404': { description: No such list }
+    put:
+      tags: [lists]
+      summary: Write or replace a list whole
+      description: |
+        Every entry is an existing regular music file on the card reached without
+        links, dot or hidden parts; stored relative to the card root under a
+        UTF-8 BOM and `#EXTM3U` (the player's screen decodes names by it), written to a temporary file, synced, read back and renamed over
+        the list, so stock never reads half a list. At most 200 lists and 5000
+        entries; 8 MiB of the card stay free for the service's database. Names are
+        UTF-8 of at most 96 bytes, without / \ : * ? " < > | or control
+        characters, not starting or ending with a dot or a space.
+      parameters:
+        - { in: path, name: scope, required: true, schema: { type: string, enum: [internal, external] } }
+        - { in: path, name: name, required: true, schema: { type: string, maxLength: 96 } }
+        - { name: X-Disc-Token, in: header, required: true, schema: { type: string } }
+        - { name: X-Disc-Request, in: header, required: true, schema: { type: string, pattern: '^[A-Za-z0-9_-]{16,64}$' } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [entries], properties: { entries: { type: array, maxItems: 5000, items: { type: string } } } }
+      responses:
+        '200': { description: "Replaced: {name, path, entries, bytes, replaced: true}" }
+        '201': { description: "Created: {name, path, entries, bytes, replaced: false}" }
+        '400': { description: "Not the body, or an entry that is not a music file on the card: {error, entry, path}" }
+        '403': { description: No credential or request ID }
+        '404': { description: Not a list name }
+        '409': { description: Too many lists, something else has the name, or the request ID was used }
+        '413': { description: Too many entries or too large a body }
+        '503': { description: Library scan, another card operation, the card away, or the write failed (the previous list stays) }
+        '507': { description: Not enough free space on the card }
+    delete:
+      tags: [lists]
+      summary: Delete a list
+      parameters:
+        - { in: path, name: scope, required: true, schema: { type: string, enum: [internal, external] } }
+        - { in: path, name: name, required: true, schema: { type: string, maxLength: 96 } }
+        - { name: X-Disc-Token, in: header, required: true, schema: { type: string } }
+        - { name: X-Disc-Request, in: header, required: true, schema: { type: string, pattern: '^[A-Za-z0-9_-]{16,64}$' } }
+      responses:
+        '200': { description: "{name, deleted: true}" }
+        '404': { description: No such list }
+        '409': { description: Not a list file }
+  /api/favorites/{songId}:
+    post:
+      tags: [favorites]
+      summary: Favorite any library track (next image)
+      description: Bodyless POST without a query; needs X-Disc-Token, a fresh X-Disc-Request and the card catalog's `favorite_add` admission.
+      parameters:
+        - { name: songId, in: path, required: true, schema: { type: integer, minimum: 1 } }
+        - { name: X-Disc-Token, in: header, required: true, schema: { type: string } }
+        - { name: X-Disc-Request, in: header, required: true, schema: { type: string, pattern: '^[A-Za-z0-9_-]{16,64}$' } }
+      responses:
+        '200':
+          description: The favorite exists, read back after the commit
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [songId, favorite, loveId, already]
+                properties:
+                  songId: { type: integer }
+                  favorite: { type: boolean, enum: [true] }
+                  loveId: { type: integer }
+                  already: { type: boolean }
+        '403': { description: No credential, or the card catalog does not admit it }
+        '404': { description: No such song in the library }
+        '409': { description: "Request ID already used, or the file is a favorite in a list's or a folder's context, which stock keeps in its place (UNIQUE(PATH, TRACK), combined-009)" }
+        '503': { description: Library scan or database busy; nothing was written }
+  /api/store:
+    get:
+      tags: [store]
+      summary: The collections the card's store.json declares, with their record counts (combined-008)
+      description: Bodyless GET without a query; creates no file.
+      responses:
+        '200':
+          description: One entry per declared collection
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [collections]
+                properties:
+                  collections:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      required: [records, max_records, skip]
+                      properties:
+                        records: { type: integer }
+                        max_records: { type: integer }
+                        skip: { type: boolean, description: The service skips a track of this collection that starts to sound while no client holds control }
+        '403': { description: No reviewed store catalog for this card }
+        '404': { description: No database configured }
+        '503': { description: The card is away or the database is unavailable }
+  /api/store/{collection}/{operation}:
+    parameters:
+      - { in: path, name: collection, required: true, schema: { type: string, pattern: '^[a-z][a-z0-9_]{1,40}$' } }
+      - { in: path, name: operation, required: true, schema: { type: string, enum: [records, count, record, batch] } }
+    get:
+      tags: [store]
+      summary: "records: a page of records; count: how many; record: one record by its key fields"
+      description: |
+        `records` takes limit (1..500, default 100), offset, order (a scalar
+        field or `updated`), desc (0|1) and field+value (equality on a scalar
+        field); `count` takes field+value; `record` takes the key fields as
+        parameters named after them. Unknown or repeated parameters are refused.
+      responses:
+        '200':
+          description: "`records`: {collection, records:[StoreRecord], total, offset, truncated}; `count`: {collection, count}; `record`: {collection, record: StoreRecord}"
+          content:
+            application/json:
+              schema: { type: object }
+        '400': { description: Invalid parameter or key }
+        '404': { description: Unknown collection, operation or record }
+        '503': { description: The card is away or the database is unavailable }
+    put:
+      tags: [store]
+      summary: "record: create or replace one record (the body)"
+      parameters:
+        - { name: X-Disc-Token, in: header, required: true, schema: { type: string } }
+        - { name: X-Disc-Request, in: header, required: true, schema: { type: string, pattern: '^[A-Za-z0-9_-]{16,64}$' } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, description: Declared fields of the collection only; at most 256 KiB }
+      responses:
+        '200':
+          description: "{collection, key, created, updated}"
+          content:
+            application/json:
+              schema: { type: object, required: [collection, key, created, updated] }
+        '400': { description: The record does not match its declaration }
+        '403': { description: No credential or request ID, or no reviewed store catalog }
+        '409': { description: Request ID already used, or the collection is full }
+        '411': { description: No body }
+        '413': { description: Body over 256 KiB }
+    delete:
+      tags: [store]
+      summary: "record: delete one record named by its key fields (query parameters)"
+      parameters:
+        - { name: X-Disc-Token, in: header, required: true, schema: { type: string } }
+        - { name: X-Disc-Request, in: header, required: true, schema: { type: string, pattern: '^[A-Za-z0-9_-]{16,64}$' } }
+      responses:
+        '200':
+          description: "{collection, key, deleted}"
+          content:
+            application/json:
+              schema: { type: object, required: [collection, key, deleted] }
+        '400': { description: Missing or invalid key fields }
+        '403': { description: No credential or request ID }
+        '409': { description: Request ID already used }
+    post:
+      tags: [store]
+      summary: "batch: {put: [records], delete: [key objects]}, 1..100 items in one transaction"
+      parameters:
+        - { name: X-Disc-Token, in: header, required: true, schema: { type: string } }
+        - { name: X-Disc-Request, in: header, required: true, schema: { type: string, pattern: '^[A-Za-z0-9_-]{16,64}$' } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                put: { type: array, items: { type: object } }
+                delete: { type: array, items: { type: object } }
+      responses:
+        '200':
+          description: "{collection, put, created, deleted}"
+          content:
+            application/json:
+              schema: { type: object, required: [collection, put, created, deleted] }
+        '400': { description: An item does not match its declaration; nothing was written }
+        '409': { description: Request ID already used, or the collection would be full; nothing was written }
+  /api/trash:
+    get:
+      tags: [trash]
+      summary: The trash on the card, newest first (combined-008)
+      responses:
+        '200':
+          description: "{entries:[{id, path, kind, bytes, files, trashed, complete}], count, bytes, truncated}"
+          content:
+            application/json:
+              schema: { type: object, required: [entries, count, bytes, truncated] }
+        '404': { description: No trash configured }
+        '503': { description: The card is away or the database is unavailable }
+    post:
+      tags: [trash]
+      summary: Move a file or folder of the card into the trash
+      description: 'Body {"path": "<file or folder below the card root>"}; never the root, hidden parts, links or what the player holds open.'
+      parameters:
+        - { name: X-Disc-Token, in: header, required: true, schema: { type: string } }
+        - { name: X-Disc-Request, in: header, required: true, schema: { type: string, pattern: '^[A-Za-z0-9_-]{16,64}$' } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [path], properties: { path: { type: string } } }
+      responses:
+        '200':
+          description: "{id, path, kind, bytes, files, trashed}"
+          content:
+            application/json:
+              schema: { type: object, required: [id, path, kind, bytes, files, trashed] }
+        '400': { description: Not a plain file or folder below the card root, or too large }
+        '403': { description: No credential or request ID }
+        '404': { description: No such file or folder }
+        '409': { description: The player has it open, or the request ID was used }
+        '503': { description: Library scan, another card operation, the card away or the database unavailable }
+    delete:
+      tags: [trash]
+      summary: Empty the trash (delete for good)
+      parameters:
+        - { name: X-Disc-Token, in: header, required: true, schema: { type: string } }
+        - { name: X-Disc-Request, in: header, required: true, schema: { type: string, pattern: '^[A-Za-z0-9_-]{16,64}$' } }
+      responses:
+        '200': { description: "{purged}" }
+        '403': { description: No credential or request ID }
+  /api/card/folder/{folder}:
+    get:
+      tags: [trash]
+      summary: One card folder in one request (combined-009); /api/card/folder is the root
+      description: Sorted by name, at most 5000 entries; hidden names and links are never listed.
+      parameters:
+        - { in: path, name: folder, required: true, schema: { type: string } }
+      responses:
+        '200': { description: "{path, entries:[{name, dir, kind, bytes, modified}], count, truncated}" }
+        '400': { description: A link, dot or hidden part in the path }
+        '404': { description: No such folder }
+        '503': { description: The card is away }
+  /api/card/tree/{folder}:
+    get:
+      tags: [trash]
+      summary: A card folder and everything below it, with every audio file's facts (combined-009); /api/card/tree is the whole card
+      description: Chunked as the walk goes; one walk at a time; at most 50000 entries, 16 levels and 120 s.
+      parameters:
+        - { in: path, name: folder, required: true, schema: { type: string } }
+      responses:
+        '200': { description: "{root, path, entries:[{path, dir, modified} | {path, bytes, modified, kind, format?, sampleRate?, bitDepth?, channels?, bitRate?, durationMs?, year?}], folders, files, bytes, truncated, elapsedMs}" }
+        '400': { description: A link, dot or hidden part in the path }
+        '404': { description: No such folder }
+        '503': { description: The card is away, or another client's walk runs }
+  /api/card/leftovers:
+    get:
+      tags: [trash]
+      summary: What macOS left on the card (AppleDouble files, .DS_Store, root .Trashes, .Spotlight-V100, .fseventsd, .TemporaryItems)
+      responses:
+        '200': { description: "{files, bytes, items:[{path, kind, files, bytes}], count, truncated}" }
+        '404': { description: No trash configured }
+        '503': { description: The card is away or another card operation is active }
+  /api/card/leftovers/trash:
+    post:
+      tags: [trash]
+      summary: Move all macOS leftovers into one trash entry (kind leftovers)
+      parameters:
+        - { name: X-Disc-Token, in: header, required: true, schema: { type: string } }
+        - { name: X-Disc-Request, in: header, required: true, schema: { type: string, pattern: '^[A-Za-z0-9_-]{16,64}$' } }
+      responses:
+        '200': { description: "{id, kind: leftovers, files, skipped, bytes, trashed}" }
+        '403': { description: No credential or request ID }
+        '404': { description: Nothing to move }
+        '503': { description: Library scan or another card operation }
+  /api/trash/{id}:
+    delete:
+      tags: [trash]
+      summary: Purge one entry (delete for good)
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer, minimum: 1 } }
+        - { name: X-Disc-Token, in: header, required: true, schema: { type: string } }
+        - { name: X-Disc-Request, in: header, required: true, schema: { type: string, pattern: '^[A-Za-z0-9_-]{16,64}$' } }
+      responses:
+        '200': { description: "{id, purged: true}" }
+        '404': { description: No such entry }
+  /api/trash/{id}/restore:
+    post:
+      tags: [trash]
+      summary: Put an entry back where it was, recreating missing parent folders
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer, minimum: 1 } }
+        - { name: X-Disc-Token, in: header, required: true, schema: { type: string } }
+        - { name: X-Disc-Request, in: header, required: true, schema: { type: string, pattern: '^[A-Za-z0-9_-]{16,64}$' } }
+      responses:
+        '200': { description: "{id, path, restored: true}" }
+        '404': { description: No such entry }
+        '409': { description: The name is taken again, or the entry's files are missing }
+  /api/catalog:
+    get:
+      tags: [catalog]
+      summary: One buffered page of the stock all-song catalog (diagnostic)
+      description: "Fixed stock route `GET /song_category_tree/` with `type: all/song`, `start-pos: 0`, `num-max: 20`; at most 256 KiB, 3-second total deadline."
+      responses:
+        '200':
+          description: Stock body and status preserved
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CatalogPage' }
+        '502': { description: Stock unavailable, oversized, truncated or past the deadline }
+        '503': { description: Another catalog request holds the single reservation }
+        '403': { $ref: '#/components/responses/Rejected' }
+  /api/catalog/stream:
+    get:
+      tags: [catalog]
+      summary: Streamed stock all-song page with validated pagination
+      parameters:
+        - in: header
+          name: start-pos
+          schema: { type: integer, minimum: 0, maximum: 2147483647, default: 0 }
+        - in: header
+          name: num-max
+          schema: { type: integer, minimum: 1, maximum: 200, default: 20 }
+      responses:
+        '200':
+          description: Chunked stock body; the final chunk is sent only after a complete upstream reply. A missing final chunk means truncation.
+          headers:
+            total-num: { schema: { type: string }, description: Forwarded when stock sent it }
+            mark-pos: { schema: { type: string }, description: Forwarded when stock sent it }
+            type: { schema: { type: string, enum: [all/song] } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CatalogPage' }
+        '400': { description: Invalid or duplicate pagination headers }
+        '502': { description: Stock unavailable or invalid reply }
+        '503': { description: Reservation held by another catalog request }
+        '403': { $ref: '#/components/responses/Rejected' }
+  /api/websocket:
+    get:
+      tags: [bridge]
+      summary: Bridge one client to stock TCP 12100 (RFC 6455 upgrade)
+      description: |
+        One control owner at a time. The upgrade reserves the owner and connects
+        to stock on player loopback; 409 for a second client, 503 when stock TCP
+        is unreachable. A successful 101 is not a stock handshake: send
+        `0599000C0000` first. See `x-websocket` for framing and close codes.
+      x-websocket:
+        record: 'four lowercase hex tag digits + four uppercase hex total-length digits (header included, UTF-8 bytes) + payload; at most 65535 bytes'
+        messages: 'text frames for valid UTF-8 records, binary otherwise; split/coalesced records and fragmentation accepted; reassembled messages capped at 65535 bytes'
+        heartbeat: 'server ping every 2 s of silence; bounded unanswered pings close the connection'
+        admission: 'installed build forwards only the four documented reads; Stage B forwards records described in commands.json under the guards'
+        close-codes:
+          '1000': client close
+          '1002': invalid WebSocket framing or reserved bits
+          '1007': malformed record or invalid text
+          '1008': record not admitted, or the credential no longer matches
+          '1009': message over 65535 bytes
+          '1011': stock TCP ended, reset or write failure
+      responses:
+        '101': { description: Switching Protocols }
+        '400': { description: Bodyless GET without a query required }
+        '403': { $ref: '#/components/responses/Rejected' }
+        '409': { description: Control channel already owned }
+        '503': { description: Stock control unavailable }
+  /:
+    get:
+      tags: [static]
+      summary: Disc Player's index.html (combined-009), else the image's copy, else the embedded page
+      description: |
+        The default app's document from the card's `Apps/Disc Player/` with
+        `Cache-Control: no-store`; while the card has none (or the player does not
+        own it) the image's copy, and without that the embedded diagnostic page.
+        Query strings are ignored on documents and files, so an app may keep its
+        navigation in the URL.
+      responses:
+        '200':
+          description: HTML document
+          content:
+            text/html:
+              schema: { type: string }
+        '403': { $ref: '#/components/responses/Rejected' }
+    head:
+      tags: [static]
+      summary: Headers of the root document
+      responses:
+        '200': { description: Same headers as GET }
+  /{path}:
+    get:
+      tags: [static]
+      summary: A file of Disc Player (combined-009)
+      parameters:
+        - { in: path, name: path, required: true, schema: { type: string }, description: 'Up to six components of [A-Za-z0-9._-]{1,80}, none hidden; web types only' }
+      responses:
+        '200': { description: "File bytes; HTML no-store, content-hashed names immutable, anything else no-cache; gzip from a .gz twin when accepted" }
+        '404': { description: No such file, a link, a hidden name or an unsupported type }
+  /apps/{app}/{path}:
+    get:
+      tags: [static]
+      summary: A file of an app on the card (combined-009); /apps/{app}/ is its index.html
+      parameters:
+        - { in: path, name: app, required: true, schema: { type: string, maxLength: 64 }, description: The app folder's name, percent-encoded }
+        - { in: path, name: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: "As /{path}, with the app's own origins in its policy" }
+        '301': { description: "/apps/{app} without its slash: redirected to /apps/{app}/" }
+        '404': { description: No such app or file }
+  /api/apps:
+    get:
+      tags: [static]
+      summary: The card's apps (combined-009)
+      responses:
+        '200': { description: "{default, apps:[{name, version, default}], image}" }
+  /api/contract/{name}:
+    get:
+      tags: [static]
+      summary: The effective reviewed catalog an app works with (combined-009)
+      description: |
+        compatibility.json is the image's; commands.json, queries.json and
+        store.json are the card's override in .disc/catalog where the image
+        admits one (commands only on the engineering image) and it passes its
+        checks, else the image's. X-Catalog-Source says which.
+      parameters:
+        - { in: path, name: name, required: true, schema: { type: string, enum: [compatibility.json, commands.json, queries.json, store.json] } }
+      responses:
+        '200': { description: The catalog document }
+        '404': { description: No such catalog on this image }
+  /api/data/{query}:
+    x-stage: B
+    get:
+      tags: [data]
+      summary: Run one reviewed read-only query over the stock SQLite databases (planned image)
+      description: |
+        The query must exist in the bundle's `queries.json`; parameters are
+        validated by their declared type, range, length and pattern and bound,
+        never interpolated. Rows are bounded by the query's `max_rows` and the
+        document by 1 MiB. This is the only API route that accepts a query string.
+      parameters:
+        - { in: path, name: query, required: true, schema: { type: string, pattern: '^[a-z][a-z0-9_]{1,40}$' } }
+        - { in: query, name: limit, required: false, schema: { type: integer, minimum: 1, maximum: 500 }, description: For paged queries }
+        - { in: query, name: offset, required: false, schema: { type: integer, minimum: 0 }, description: For paged queries }
+        - { in: query, name: id, required: false, schema: { type: integer, minimum: 1 }, description: For by-id queries }
+      responses:
+        '200':
+          description: Bounded result document
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DataResult' }
+        '400': { description: Invalid or missing parameters }
+        '403': { description: No reviewed query catalog for this card, or admission refused }
+        '404': { description: Unknown query }
+        '409': { description: A table the query reads does not exist now (stock drops LIST_SONG_0 when a scan removes a queued file); do not retry }
+        '503': { description: Database busy, unavailable or a scan in progress }
+  /api/media/{kind}/{path}:
+    x-stage: C
+    get:
+      tags: [media]
+      summary: Read-only metadata, cover or lyrics of one music file on the card
+      description: |
+        `kind` is `info`, `cover` or `lyrics`; `path` is the absolute card path
+        (for example `tmp/sdcard/Album/01 Song.flac`, percent-encoded). Only
+        audio extensions below the card root are admitted, one component at a
+        time, without links or dot components. `info` reads FLAC STREAMINFO and
+        Vorbis comments or the WAV format; `cover` streams an embedded front
+        cover or a folder `cover`/`folder`/`front` JPEG or PNG (at most 8 MiB);
+        `lyrics` returns a same-stem `.lrc` or the embedded `LYRICS` comment (at
+        most 256 KiB), `text/plain; charset=utf-8` when valid UTF-8, otherwise
+        `application/octet-stream`. `audio` (combined-008) streams the file
+        itself with `Accept-Ranges: bytes`: one range answers 206, none 200,
+        an unsatisfiable or multiple range 416; never below a hidden folder.
+        Bodyless GET without a query string; at most two media reads and two
+        audio streams at a time.
+      parameters:
+        - { in: path, name: kind, required: true, schema: { type: string, enum: [info, cover, lyrics, audio] } }
+        - { in: header, name: Range, required: false, schema: { type: string }, description: 'audio only: one byte range, bytes=a-b, a- or -n' }
+        - { in: path, name: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: The metadata document, image or lyrics
+          headers:
+            X-Cover-Source: { schema: { type: string, enum: [embedded, folder] } }
+            X-Lyrics-Source: { schema: { type: string, enum: [sidecar, embedded] } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MediaInfo' }
+            image/jpeg: {}
+            image/png: {}
+            text/plain: {}
+        '204': { description: The file has no cover or lyrics }
+        '206': { description: "audio: the requested byte range, with Content-Range" }
+        '416': { description: "audio: the range cannot be satisfied (Content-Range: bytes */size)" }
+        '403': { description: Path outside the card, unsafe component or not an audio file }
+        '404': { description: No such music file }
+        '405': { description: Not a bodyless GET without a query }
+        '503': { description: Card not owned by the player, or media reads busy }
+  /api/media/current-lyrics:
+    x-stage: C
+    get:
+      tags: [media]
+      summary: The lyrics stock prepared for the current track
+      description: |
+        The player's own converted lyric file (same-stem `.lrc` or embedded text,
+        UTF-8). It names no track: `X-Lyrics-Age` gives its age in seconds so a
+        client can compare it with the track change it observed.
+      responses:
+        '200':
+          description: Lyrics text
+          headers:
+            X-Lyrics-Age: { schema: { type: integer, minimum: 0 } }
+          content:
+            text/plain: {}
+        '204': { description: No current lyrics }
+        '404': { description: No current lyrics source configured }
+  /api/stock/{route}:
+    x-stage: B
+    get:
+      tags: [stock]
+      summary: Forward a reviewed stock HTTP read (planned)
+      description: |
+        The gateway forwards only requests that `commands.json` describes: method,
+        path pattern and headers must match; denials win. Query strings are never
+        forwarded, stock takes parameters in headers. Time and size budgets apply.
+      parameters:
+        - { in: path, name: route, required: true, schema: { type: string }, description: 'Stock path without the leading slash, e.g. song_category_tree/' }
+        - { in: header, name: X-Disc-Token, required: false, schema: { type: string }, description: Required for mutations; see gateway contract }
+      responses:
+        '200': { description: Stock status and body preserved }
+        '403': { description: Not admitted by the catalog, denied, or token missing }
+    post:
+      tags: [stock]
+      summary: Forward a reviewed stock mutation; audio uploads are written on the card by the gateway (planned image)
+      parameters:
+        - { in: path, name: route, required: true, schema: { type: string } }
+        - { in: header, name: X-Disc-Token, required: true, schema: { type: string } }
+        - { in: header, name: X-Disc-Request, required: true, schema: { type: string, pattern: '^[A-Za-z0-9_-]{16,64}$' }, description: Client request ID; replays are rejected }
+        - { in: header, name: X-Disc-Replace, required: false, schema: { type: string, enum: [trash] }, description: 'Uploads of .lrc, .jpg, .jpeg or .png only (combined-008): an existing file of that name goes to the trash first; audio is never replaced' }
+      requestBody:
+        content:
+          application/octet-stream: { schema: { type: string, format: binary } }
+          application/json: { schema: { type: array } }
+      responses:
+        '200': { description: Stock status and body preserved }
+        '403': { description: Not admitted, denied, token or request ID missing }
+        '201': { description: "Upload published on the card (path, bytes, indexed=false, replaced); run the scan record to index it" }
+        '409': { description: Duplicate request ID, or the upload destination already exists }
+        '413': { description: Body over the catalog bound }
+        '507': { description: Not enough free space on the card for the upload }
+    delete:
+      tags: [stock]
+      summary: Forward a reviewed stock deletion limited to custom playlists (planned)
+      parameters:
+        - { in: path, name: route, required: true, schema: { type: string } }
+        - { in: header, name: X-Disc-Token, required: true, schema: { type: string } }
+        - { in: header, name: X-Disc-Request, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Stock status and body preserved }
+        '403': { description: Denied (source deletion is never forwarded) }
+components:
+  responses:
+    Rejected:
+      description: "Host/Origin mismatch or duplicate headers."
+      content:
+        text/plain: { schema: { type: string, example: "Host or Origin rejected\n" } }
+  securitySchemes:
+    lanMarker:
+      type: apiKey
+      in: header
+      name: Host
+      description: Host must be a current player address, or a single-label `.local` name, with the service port; Origin, when present, must be `http://<Host>`. Since combined-008 the Wi-Fi listener needs no card marker (through combined-007 remote requests needed `DISC_WEB_LAN_DEBUG`).
+    cardToken:
+      type: apiKey
+      in: header
+      name: X-Disc-Token
+      description: The player's serial number (About device), the only pairing credential since combined-008; see the gateway contract.
+      x-stage: B
+  schemas:
+    Health:
+      type: object
+      required: [service, controlActive, readOnly, upstream]
+      properties:
+        service: { type: string, const: disc-native-probe }
+        controlActive: { type: boolean, description: A WebSocket owner currently holds the stock control channel }
+        readOnly: { type: boolean, description: Installed build forwards reads only }
+        upstream: { type: string, description: Stock address as seen by the gateway (loopback) }
+        api: { type: integer, description: Gateway contract version (Stage B) }
+        media: { type: boolean, description: Card media metadata routes are available }
+        history: { type: boolean, description: The play observer records a history in the card database }
+        store: { type: boolean, description: The service keeps the card catalog's collections in its database (combined-008) }
+        trash: { type: boolean, description: Card files and folders go to the trash in .disc/trash instead of being deleted (combined-008) }
+        internalLists: { type: boolean, description: The service keeps M3U lists of its own, hidden in .disc/playlists (combined-009) }
+        externalLists: { type: boolean, description: The service writes M3U lists the player's file browser shows, in Playlists/ (combined-009) }
+        historyWrites: { type: string, enum: [ok, failing], description: "failing when the last play the service tried to write to the card database failed; /api/about says why (combined-009)" }
+        favoriteAny: { type: boolean, description: This image can favorite any library track (next image) }
+        snPairing: { type: boolean, description: Pairing with the player's serial number is available (the SN is readable); the number itself is never served }
+    CatalogPage:
+      type: array
+      items:
+        type: object
+        properties:
+          pos: { type: integer }
+          name: { type: string }
+          author: { type: string }
+          count: { type: integer }
+    ActiveManifest:
+      type: object
+      required: [schema, bundle, api]
+      properties:
+        schema: { type: integer, const: 1 }
+        bundle: { type: string, pattern: '^[0-9a-f]{16}$' }
+        api: { type: integer, const: 1 }
+    CompatibilityAsset:
+      type: object
+      required: [schema, api, protocol_identity, main_os_version, profile_sha256]
+      properties:
+        schema: { type: integer, const: 1 }
+        api: { type: integer, const: 1 }
+        protocol_identity: { type: string, pattern: '^[0-9a-f]{4}$', description: Expected `a599` handshake value }
+        main_os_version: { type: integer, description: Expected `a501.soc_version` }
+        profile_sha256: { type: string, pattern: '^[0-9a-f]{64}$' }
+    PlayHistory:
+      type: object
+      required: [records, truncated]
+      properties:
+        truncated: { type: boolean }
+        records:
+          type: array
+          items:
+            type: object
+            required: [v, t, path, s, ctx]
+            properties:
+              v: { type: integer, enum: [1] }
+              t: { type: integer, description: Device clock at the start of the play (Unix seconds) }
+              path: { type: string }
+              title: { type: [string, 'null'], description: The CUE track of a CUE image (combined-008); null for a whole file }
+              s: { type: integer, description: Seconds of sound when recorded }
+              source: { type: string, enum: [player, browser], description: Where the play sounded (combined-009) }
+              ctx:
+                type: object
+                properties:
+                  type: { type: [integer, 'null'], description: Stock SONG_TYPE of the queue }
+                  count: { type: integer }
+                  hash: { type: [string, 'null'], pattern: '^[0-9a-f]{16}$' }
+                  album: { type: [string, 'null'] }
+                  artist: { type: [string, 'null'] }
+                  genre: { type: [string, 'null'] }
+                  folder: { type: [string, 'null'] }
+    DeviceFacts:
+      type: object
+      required: [battery, card, output]
+      properties:
+        battery:
+          type: [object, 'null']
+          properties:
+            capacity: { type: integer, minimum: 0, maximum: 100 }
+            voltageMv: { type: [integer, 'null'] }
+            temperatureC: { type: [number, 'null'] }
+            cycles: { type: [integer, 'null'] }
+        card:
+          type: [object, 'null']
+          properties:
+            totalBytes: { type: integer }
+            freeBytes: { type: integer }
+        output:
+          type: [object, 'null']
+          properties:
+            active: { type: boolean }
+            device: { type: string }
+            state: { type: string }
+            format: { type: string }
+            rate: { type: integer }
+            channels: { type: integer }
+    MediaInfo:
+      type: object
+      required: [path, format, bytes, durationMs, sampleRate, bitDepth, channels, bitRate, tags, cover, lyrics]
+      properties:
+        path: { type: string }
+        format: { type: string }
+        bytes: { type: integer }
+        durationMs: { type: [integer, 'null'] }
+        sampleRate: { type: [integer, 'null'] }
+        bitDepth: { type: [integer, 'null'] }
+        channels: { type: [integer, 'null'] }
+        bitRate: { type: [integer, 'null'], description: Average kbit/s of lossy streams (MP3, AAC) }
+        tags:
+          type: object
+          properties:
+            title: { type: [string, 'null'] }
+            artist: { type: [string, 'null'] }
+            album: { type: [string, 'null'] }
+            albumArtist: { type: [string, 'null'] }
+            genre: { type: [string, 'null'] }
+            track: { type: [string, 'null'] }
+            disc: { type: [string, 'null'] }
+            date: { type: [string, 'null'] }
+        cover: { type: [string, 'null'], enum: [embedded, folder, null] }
+        lyrics: { type: [string, 'null'], enum: [sidecar, embedded, null] }
+    DataResult:
+      type: object
+      required: [query, columns, rows, rows_returned, truncated]
+      properties:
+        query: { type: string }
+        columns: { type: array, items: { type: string } }
+        rows: { type: array, items: { type: array, items: { type: [integer, number, string, 'null'] } } }
+        rows_returned: { type: integer }
+        truncated: { type: boolean }
+    CommandsCatalog:
+      type: object
+      description: Published copy of the reviewed catalog with `profile_sha256` and `catalog_sha256`; validated by `scripts/command_catalog.py`.
+      required: [schema_version, api, version, records, http, denied, profile_sha256, catalog_sha256]
+      properties:
+        schema_version: { type: integer, const: 1 }
+        api: { type: integer, const: 1 }
+        version: { type: string }
+        records: { type: object, additionalProperties: { $ref: '#/components/schemas/RecordCommand' } }
+        http: { type: array, items: { $ref: '#/components/schemas/HttpCommand' } }
+        denied: { type: object }
+        profile_sha256: { type: string }
+        catalog_sha256: { type: string }
+    RecordCommand:
+      type: object
+      required: [name, kind, class, payload, reply, silent_ok, timeout_ms, pacing_ms, max_bytes, notes, evidence]
+      properties:
+        name: { type: string }
+        kind: { type: string, enum: [read, mutation] }
+        class: { type: string }
+        payload: { type: string, description: Regular expression the payload must fully match }
+        reply: { type: [string, 'null'], description: Expected reply tag, or null when the outcome is observed through pushes }
+        silent_ok: { type: boolean }
+        timeout_ms: { type: integer }
+        pacing_ms: { type: integer }
+        max_bytes: { type: integer }
+        notes: { type: string }
+        evidence: { type: string }
+    HttpCommand:
+      type: object
+      required: [name, method, path, kind, class, headers, required_headers, body, max_body_bytes, notes, evidence]
+      properties:
+        name: { type: string }
+        method: { type: string, enum: [GET, POST, DELETE] }
+        path: { type: string, description: Regular expression the stock path must fully match; never a query }
+        kind: { type: string, enum: [read, mutation] }
+        class: { type: string }
+        headers: { type: object, additionalProperties: { type: string } }
+        required_headers: { type: array, items: { type: string } }
+        body: { type: string, enum: [none, json, raw] }
+        max_body_bytes: { type: integer }
+        notes: { type: string }
+        evidence: { type: string }
