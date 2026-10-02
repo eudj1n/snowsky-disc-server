@@ -1402,102 +1402,23 @@ class GatewayTests(unittest.TestCase):
         # API responses keep their own same-origin policy.
         self.assertNotIn('musicbrainz', self.http('GET', '/api/health')[2].get('content-security-policy', ''))
 
-    def supervised(self, extra=()):
-        """The service under its supervisor; returns (supervisor, child pid function, restart log)."""
-        log = self.root/'restarts.log'
-        www, _ = self.publish()
-        self.port = free_port(); self.authority = f'127.0.0.1:{self.port}'
-        args = [*SERVICE_COMMAND, '--supervise', '--restart-log', str(log), '--restart-delay-ms', '50',
-                '--disable-switch', str(self.card/'.disc'/'disabled'), '--port', str(self.port), '--authority', self.authority,
-                '--tcp-port', str(self.tcp.server_address[1]), '--http-port', str(self.stock.server_address[1]),
-                '--apps', str(self.card/'Apps'), '--catalog', str(www/'catalog'), '--upload-root', str(self.card),
-                '--serial-file', str(self.serial_file), *extra]
-        self.proc = subprocess.Popen(args, stdout=self.log, stderr=self.log)
-        def child():
-            out = subprocess.run(['pgrep', '-P', str(self.proc.pid)], capture_output=True, text=True).stdout.split()
-            return int(out[0]) if out else None
-        def healthy():
-            for _ in range(100):
-                try:
-                    if self.health()[0] == 200: return True
-                except OSError: time.sleep(.05)
-            return False
-        self.assertTrue(healthy())
-        return child, healthy, log
-
-    def test_the_supervisor_restarts_a_crashed_service_and_the_card_switch_stops_it(self):
-        import signal as signals
-        child, healthy, log = self.supervised()
-        first = child()
-        self.assertIsNotNone(first)
-        os.kill(first, signals.SIGSEGV)
-        for _ in range(100):
-            if child() not in (None, first): break
-            time.sleep(.05)
-        second = child()
-        self.assertNotIn(second, (None, first))
-        self.assertTrue(healthy())
-        self.assertRegex(log.read_text(), r'^\d+ restarted after signal 11\n$')
-        # The card switch: the service stops within about two seconds and is not started again.
-        (self.card/'.disc').mkdir(exist_ok=True); (self.card/'.disc'/'disabled').write_text('')
-        self.assertEqual(self.proc.wait(timeout=10), 0)
-        self.assertTrue(log.read_text().endswith(' disabled by the card switch\n'))
-        self.assertIn(b'Disabled by the card switch; stopping', self.log_text())
-        # With the switch in place it does not start at all.
-        child, healthy, log = None, None, log
-        self.port = free_port()
-        proc = subprocess.Popen([*SERVICE_COMMAND, '--supervise', '--restart-log', str(log), '--disable-switch',
-                                 str(self.card/'.disc'/'disabled'), '--port', str(self.port), '--authority', f'127.0.0.1:{self.port}'],
-                                stdout=self.log, stderr=self.log)
-        self.assertEqual(proc.wait(timeout=10), 0)
-        self.assertIn(b'Disabled by the card switch; not started', self.log_text())
-        (self.card/'.disc'/'disabled').unlink()
-
-    def test_the_supervisor_gives_up_after_five_restarts_and_stops_cleanly(self):
-        import signal as signals
-        child, healthy, log = self.supervised()
-        for n in range(5):
-            pid = child(); os.kill(pid, signals.SIGKILL)
-            for _ in range(200):
-                if child() not in (None, pid): break
-                time.sleep(.05)
-            self.assertTrue(healthy(), n)
-        os.kill(child(), signals.SIGABRT)
-        self.assertEqual(self.proc.wait(timeout=10), 1)
-        lines = log.read_text().splitlines()
-        self.assertEqual([line.split(' ', 1)[1] for line in lines],
-                         ['restarted after signal 9'] * 5 + ['stopped after signal 6: 5 restarts in ten minutes'])
-        # A clean stop (TERM to the supervisor) reaches the service and is not a crash.
-        log.unlink()
-        child, healthy, log = self.supervised()
-        pid = child()
-        self.proc.terminate()
-        self.assertEqual(self.proc.wait(timeout=10), 0)
-        self.assertTrue(log.read_text().endswith(' stopped\n'))
-        self.assertEqual(subprocess.run(['kill', '-0', str(pid)], capture_output=True).returncode, 1)
-        self.proc = None
-
-    def test_about_tells_versions_page_card_database_restarts_and_messages(self):
+    def test_about_tells_versions_page_card_database_and_messages(self):
         database = self.card/'.disc'/'disc.db'
-        restarts = self.root/'restarts.log'
-        restarts.write_text(''.join(f'{1790000000 + n} restarted after signal 11\n' for n in range(12)))
-        image = self.root/'image.json'
-        image.write_text('{"schema":1,"variant":"product","firmwareVersion":"2.57","app":null}\n')
         www, report = self.publish()
-        self.start(www, extra=('--database', str(database), '--restart-log', str(restarts), '--image-info', str(image)))
+        self.start(www, extra=('--database', str(database)))
         status, body, _ = self.http('GET', '/api/about')
         doc = json.loads(body)
         self.assertEqual((status, doc['service']['name'], doc['service']['version'], doc['service']['api'], doc['service']['supervised']),
-                         (200, 'disc-native-probe', '0.9.0', 1, True))
+                         (200, 'disc-native-probe', '0.9.0', 1, False))
         self.assertTrue(doc['service']['build'])
-        self.assertEqual(doc['image'], {'schema': 1, 'variant': 'product', 'firmwareVersion': '2.57', 'app': None})
+        # The combined images' identity file and restart log are gone; the shape stays for clients.
+        self.assertEqual((doc['image'], doc['restarts']), (None, []))
         self.assertEqual(doc['page'], {'source': 'card', 'app': 'Disc Player', 'version': None})
         (report['app']/'app.json').write_text('{"schema":1,"name":"Disc Player","version":"2026.09.29"}')
         self.assertEqual(json.loads(self.http('GET', '/api/about')[1])['page']['version'], '2026.09.29')
         self.assertEqual(doc['card'], {'owned': True})
         self.assertEqual(doc['database'], {'state': 'absent', 'schema': None, 'bytes': None, 'plays': None, 'records': None, 'trash': None,
                                            'writes': {'failed': 0, 'lastFailure': None, 'lastSuccess': None, 'reason': None}})
-        self.assertEqual(doc['restarts'], [f'{1790000000 + n} restarted after signal 11' for n in range(2, 12)])
         self.store('PUT', '/disliked/record', {'path': str(self.card/'a.flac'), 'at': 1})
         doc = json.loads(self.http('GET', '/api/about')[1])
         self.assertEqual({k: doc['database'][k] for k in ('state', 'schema', 'plays', 'records', 'trash')},
@@ -1510,9 +1431,6 @@ class GatewayTests(unittest.TestCase):
         self.assertIn("The origins.json of an app was rejected; it stays same-origin", [entry['m'] for entry in doc['log']])
         self.assertNotIn(SERIAL.encode(), self.http('GET', '/api/about')[1])
         self.assertIsNone(doc['boot'], 'outside the boot layer')
-        # A damaged identity file shows as null; the route takes no query.
-        image.write_text('{"variant": tru}')
-        self.assertIsNone(json.loads(self.http('GET', '/api/about')[1])['image'])
         self.assertEqual(self.http('GET', '/api/about?x=1')[0], 405)
 
     def test_under_the_boot_layer_it_says_when_it_listens_and_shows_boot(self):
@@ -1530,6 +1448,7 @@ class GatewayTests(unittest.TestCase):
         self.assertTrue(ready.is_file(), 'the ready file follows the listener')
         boot = json.loads(self.http('GET', '/api/about')[1])['boot']
         self.assertEqual((boot['decision']['mode'], boot['service']['name'], boot['service']['state']), ('platform', 'disc-server', 'starting'))
+        self.assertTrue(json.loads(self.http('GET', '/api/about')[1])['service']['supervised'], 'the boot layer supervises it')
         (status/'service.json').write_text('{"state": confirm')
         self.assertIsNone(json.loads(self.http('GET', '/api/about')[1])['boot']['service'])
         for option in ('--ready-file', '--boot-status'):
@@ -1642,30 +1561,21 @@ class GatewayTests(unittest.TestCase):
         self.assertEqual(self.http('GET', '/api/health', {'Origin': 'https://player.example'})[0], 403)
         self.assertIn(b"The card's hosted.json rejected", self.log_text())
 
-    def test_the_image_serves_its_own_app_while_the_card_has_none(self):
-        # combined-009: the image's copy of Disc Player is served at / while the card has no Apps/Disc Player.
-        image_app = self.root/'image'/'app'; image_app.mkdir(parents=True)
-        (image_app/'index.html').write_text('<script src="./app.js"></script><!-- image -->')
-        (image_app/'app.js').write_text('fetch("/api/health") // image')
+    def test_apps_live_only_on_the_card(self):
+        # The combined images' copy of an app and the embedded probe page are gone (owner, 2026-10-02).
         www, report = self.publish()
-        shutil.rmtree(report['app'])
-        self.start(www, extra=('--image-app', str(image_app), '--database', str(self.card/'.disc'/'disc.db')))
-        status, body, _ = self.http('GET', '/')
-        self.assertEqual((status, body.endswith(b'<!-- image -->')), (200, True))
-        self.assertEqual(self.http('GET', '/app.js')[1], b'fetch("/api/health") // image')
-        self.assertEqual(json.loads(self.http('GET', '/api/about')[1])['page'], {'source': 'image', 'app': 'Disc Player', 'version': None})
-        self.assertEqual(self.store('GET', '')[0], 200)  # the catalogs are the image's, whatever serves the page
-        # The card's Disc Player takes over, file by file; other apps are never the image's.
-        www, report = self.publish()
+        self.start(www, extra=('--database', str(self.card/'.disc'/'disc.db')))
         self.assertIn(b'/app.js', self.http('GET', '/')[1])
         self.assertEqual(json.loads(self.http('GET', '/api/about')[1])['page']['source'], 'card')
-        self.assertEqual(self.http('GET', '/apps/Other/')[0], 404)
-        # Without either the embedded page answers.
-        self.proc.terminate(); self.proc.wait(timeout=5)
+        for option in ('--image-app', '--image-info', '--restart-log', '--disable-switch', '--supervise'):
+            with self.subTest(option=option):
+                self.assertEqual(subprocess.run([*SERVICE_COMMAND, option, '/x'], capture_output=True, timeout=10).returncode, 2)
         shutil.rmtree(report['app'])
-        self.start(www, extra=('--image-app', str(self.root/'missing'/'app')))
-        self.assertEqual(self.http('GET', '/')[0], 200)
-        self.assertEqual(json.loads(self.http('GET', '/api/about')[1])['page'], {'source': 'embedded', 'app': None, 'version': None})
+        status, body, _ = self.http('GET', '/')
+        self.assertEqual((status, body), (404, b'No app is installed\n'))
+        self.assertEqual(self.http('GET', '/app.js')[0], 404)
+        self.assertEqual(json.loads(self.http('GET', '/api/about')[1])['page'], {'source': None, 'app': None, 'version': None})
+        self.assertEqual(self.store('GET', '')[0], 200)  # the catalogs do not depend on an app
 
     def test_a_cue_image_counts_each_track_and_the_skip_rule_sees_its_title(self):
         import sqlite3

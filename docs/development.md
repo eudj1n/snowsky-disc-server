@@ -61,7 +61,8 @@ hard-float build on its first WebSocket ([corrected analysis](combined-browser-o
 qemu-user never reaches that path. `scripts/build.sh mips` fails unless
 `disc-service` reports `FP ABI: Soft float` and contains no FPU instructions.
 Output: `build/mips/disc-service` and `framing-test`, static MIPS
-little-endian soft-float with the probe page embedded.
+little-endian soft-float. Apps live on the card; the binary carries no page
+(`apps/probe` is a test app the guest checks install on the card).
 
 ## The service package
 

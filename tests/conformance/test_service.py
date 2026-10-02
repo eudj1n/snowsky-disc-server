@@ -211,7 +211,8 @@ class ServiceTests(unittest.TestCase):
         c=WS(self.port,**kwargs);self.clients.append(c);return c
     def test_health_and_assets_do_not_connect(self):
         before=len(self.tcp.commands);connections=self.tcp.connections
-        for path in ('/','/app.js','/protocol.mjs','/style.css','/api/health'):self.assertEqual(self.get(path)[0],200)
+        # Without an app on a card the documents answer 404 (no embedded page since 2026-10-02); health answers.
+        for path,code in (('/',404),('/app.js',404),('/api/health',200)):self.assertEqual(self.get(path)[0],code,path)
         self.assertEqual(len(self.tcp.commands),before)
         self.assertEqual(self.tcp.connections,connections)
     def test_host_origin_and_method(self):

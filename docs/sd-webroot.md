@@ -13,8 +13,7 @@ installation. Anyone can make an app; Disc Player is the default one.
 | `Apps/<App>/` on the card | One app: `index.html` and the files it loads; an optional `origins.json` (the app's external origins) and `app.json` (its name and version) |
 | `Apps/Disc Player/` | The default app, served at `/` |
 | `.disc/catalog/` on the card | The card's override of the reviewed catalogs (below) |
-| `/opt/disc-web/app/` in the image | The image's copy of Disc Player, served while the card has none |
-| `/opt/disc-web/catalog/` in the image | The reviewed catalogs: `compatibility.json`, `commands.json`, `queries.json`, `store.json` |
+| `catalog/` in the service package | The reviewed catalogs: `compatibility.json`, `commands.json`, `queries.json`, `store.json`, `hosted.json` |
 
 `Apps/` is visible on purpose: `.disc` is hidden in the Finder, and a user
 must see where to put an app. The player's own folder screen shows the folder
@@ -51,9 +50,8 @@ too; it holds no audio. Everything else the service keeps stays in `.disc`
   labels, a wildcard only as the first label, a port, nothing else; a file
   that breaks one is rejected whole and the app stays same-origin).
 - The card is read only while the player owns it (the mount check); in USB
-  storage mode, or with no card, `/` serves the image's Disc Player, and
-  without that the small embedded page. The embedded page never fills a hole
-  in an app.
+  storage mode, or with no card, `/` answers 404 "No app is installed" (the
+  combined images' copy of Disc Player and the embedded page are gone).
 - Slow clients: a file streams as long as the client takes at least 16 KiB in
   every 5-second window, up to 120 seconds in all.
 

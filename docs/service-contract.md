@@ -14,28 +14,16 @@ headers fail. These checks are not authentication. Emulator publication is
 loopback-only; LAN distribution requires a separate pairing/authentication design.
 No CORS, TLS, arbitrary file serving, shell execution or redirects are provided.
 
-## Self-recovery and the card switch
+## Supervision
 
-Since combined-008 the boot hook starts `disc-service --supervise
---restart-log /run/disc-web-restarts.log …`: a supervisor process (single
-threaded, no listener) runs the service as its child and starts it again
-after a crash, meaning a signal or an unexpected exit status, waiting 1, 2,
-4… seconds (at most 30; `--restart-delay-ms` sets the first wait for tests),
-at most five times in ten minutes; the sixth crash ends supervision. A clean
-stop (the hook's `stop` sends TERM to the supervisor, which passes it on),
-invalid options (status 2) and the card switch (status 3) are not restarted.
-Every outcome is one line in the restart log ("restarted after signal 11",
-"disabled by the card switch", "stopped", "stopped after …: 5 restarts in
-ten minutes"), kept under 4 KiB on `/run` and shown by the diagnostics.
-
-`--disable-switch <card>/.disc/disabled`: any file or folder there stops the
-service while the card is mounted for the player, checked at start and every
-two seconds, so a user can back out in USB storage mode (create the file on
-the card, eject); removing it and restarting the player (or the service)
-brings it back. `/usr/data/disc-web.disabled` in the rootfs still keeps the
-hook from starting anything. On the guest the MIPS service under qemu-user
-was killed (signal 9) and started again with the log line, and a
-`.disc/disabled` folder stopped it within 3.8 seconds.
+On the player the service is the boot layer's `service` package
+(snowsky-disc-boot `docs/contract.md`): boot starts it, waits for its ready
+file, confirms it after 180 s of running, restarts a confirmed version at
+most three times in ten minutes and rolls a new one back to the previous one
+at its first failure. The combined images' own supervisor (`--supervise`,
+the restart log) and the card switch (`.disc/disabled`) are gone with them
+(owner, 2026-10-02); Volume Up at power-on, or the default mode `stock`,
+keeps the service from starting. Their history is in snowsky-disc-web.
 
 ## Diagnostics
 
@@ -43,9 +31,8 @@ was killed (signal 9) and started again with the log line, and a
 what support needs without a console: `{"service":{"name","version" (the
 combined image the service belongs to, "0.9.0" for combined-009),"build" (the source commit,
 "+changes" when the device sources differed from it),"api","uptime" (s),
-"supervised"},"image":<the image's identity file, --image-info
-/opt/disc-web/image.json: variant, firmware version, profile and service
-fingerprints, the page bundle; null when absent or not strict JSON>,
+"supervised" (true under the boot layer)},"image":null (the combined
+images' identity file; kept for clients),
 "boot":{"decision":<the boot layer's boot.json>,"service":<its service.json:
 the package's name and version, the slot, confirmed or not, failures, the
 last request>} (snowsky-disc-boot `docs/contract.md`, "Status"; `--boot-status
@@ -57,8 +44,8 @@ the boot layer),
 "reason"}} (null without --database; `writes` since the service started,
 combined-009: how many plays could not be written, when, and the last
 reason, "card away", "newer schema", "card full", "input/output" or
-"failed"),"restarts":[the newest
-ten lines of the restart log],"log":[{"t","m"}: the newest 32 messages the
+"failed"),"restarts":[] (the combined images' restart log; the boot layer's
+service.json now tells),"log":[{"t","m"}: the newest 32 messages the
 service wrote to standard error]}`. Messages name no credential, track or
 user file (an address locked out of pairing is named). `--version` prints
 the version and the build. Under the boot layer `--ready-file PATH` is
@@ -72,14 +59,12 @@ failure, and each change of reason, is also a service message.
 
 Combined-009 ([Apps on the card](sd-webroot.md)): `--apps <card>/Apps`
 serves each app folder, Disc Player at `/` and any app at `/apps/<App>/`;
-`--image-app /opt/disc-web/app` is the image's copy of Disc Player
-(`build_candidate.py --page <zip or folder>`, named with its version in
-`image.json`), served while the card has none; without either the embedded
-probe page answers. `--catalog /opt/disc-web/catalog` holds the image's
-reviewed catalogs; `--card-catalog <card>/.disc/catalog` lets the card
+apps live only on the card (owner, 2026-10-02): without the default app `/`
+answers 404 "No app is installed". `--catalog` holds the reviewed catalogs
+(the package's `catalog/`); `--card-catalog <card>/.disc/catalog` lets the card
 override `queries.json` and `store.json`, and `--card-commands` (the
 engineering image only) its `commands.json`; a card file that fails its
-checks leaves the image's in force. `GET /api/contract/<name>.json` serves
+checks leaves the package's in force. `GET /api/contract/<name>.json` serves
 the effective `compatibility.json` (the image's), `commands.json`,
 `queries.json` and `store.json` with `X-Catalog-Source`; `GET /api/apps`
 lists the card's apps (`{"default","apps":[{"name","version","default"}],

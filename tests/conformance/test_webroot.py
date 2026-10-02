@@ -100,14 +100,14 @@ class WebrootTests(unittest.TestCase):
         (self.app/'app.js').unlink()
         self.assertEqual(self.fetch('/app.js', headers={'Accept-Encoding': 'gzip'})[0], 404)
 
-    def test_without_the_apps_folder_or_its_index_the_embedded_page_answers(self):
+    def test_without_the_apps_folder_or_its_index_nothing_is_installed(self):
         original = self.fetch('/')[1]
         self.apps.rename(self.root/'removed')
-        self.assertIn(b'NATIVE PROBE', self.fetch('/')[1])
+        self.assertEqual(self.fetch('/')[:2], (404, b'No app is installed\n'))
         (self.root/'removed').rename(self.apps)
         self.assertEqual(self.fetch('/')[1], original)
         (self.app/'index.html').unlink()
-        self.assertIn(b'NATIVE PROBE', self.fetch('/')[1])
+        self.assertEqual(self.fetch('/')[0], 404)
 
     def test_query_strings_are_ignored_on_documents_and_refused_on_api_routes(self):
         status, body, headers = self.fetch('/?view=album&name=CI%20Album')
@@ -134,9 +134,9 @@ class WebrootTests(unittest.TestCase):
         self.proc.terminate()
         self.proc.wait(timeout=5)
         self.start('--sd-mount', str(self.root), '--sd-source', '/dev/mmcblk0p1')
-        self.assertIn(b'NATIVE PROBE', self.fetch('/')[1])
-        # The embedded page's own script, never the app's from a card the player does not own.
-        self.assertNotEqual(self.fetch('/app.js')[1], b'console.log("version one")')
+        # Never the app from a card the player does not own.
+        self.assertEqual(self.fetch('/')[0], 404)
+        self.assertEqual(self.fetch('/app.js')[0], 404)
 
     def test_the_lan_listener_is_on_by_default_and_checks_host_and_origin(self):
         # combined-008: no marker; a LAN Host is an address or an mDNS name with the service port.

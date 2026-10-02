@@ -21,7 +21,7 @@ endif
 all: $(OUT)/disc-service
 $(OUT):
 	mkdir -p $@
-$(OUT)/main.o: src/main.c src/framing.h src/webroot.h src/catalog.h src/data.h src/media.h src/facts.h src/history.h src/database.h src/store.h src/trash.h src/lists.h src/tree.h src/origins.h src/log.h src/jsonutil.h vendor/civetweb/include/civetweb.h $(OUT)/assets.h | $(OUT)
+$(OUT)/main.o: src/main.c src/framing.h src/webroot.h src/catalog.h src/data.h src/media.h src/facts.h src/history.h src/database.h src/store.h src/trash.h src/lists.h src/tree.h src/origins.h src/log.h src/jsonutil.h vendor/civetweb/include/civetweb.h | $(OUT)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
 $(OUT)/catalog.o: src/catalog.c src/catalog.h src/jsonutil.h vendor/jsmn/jsmn.h | $(OUT)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@

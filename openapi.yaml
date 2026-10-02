@@ -62,7 +62,7 @@ paths:
       description: Bodyless GET without a query. Versions and the source commit, the image's identity, which release serves the page, the card, the database facts, the supervisor's restarts and the newest service messages; no credential, track or user file.
       responses:
         '200':
-          description: "{service:{name, version, build, api, uptime, supervised}, image, boot:{decision, service} (the boot layer's boot.json and service.json, or null outside it), page:{source, release}, card:{owned}, database:{state, schema, bytes, plays, records, trash, writes:{failed, lastFailure, lastSuccess, reason}}, restarts:[...], log:[{t, m}]}"
+          description: "{service:{name, version, build, api, uptime, supervised (true under the boot layer)}, image (always null), boot:{decision, service} (the boot layer's boot.json and service.json, or null outside it), page:{source, release}, card:{owned}, database:{state, schema, bytes, plays, records, trash, writes:{failed, lastFailure, lastSuccess, reason}}, restarts:[] (always empty), log:[{t, m}]}"
           content:
             application/json:
               schema: { type: object, required: [service, image, page, card, database, restarts, log] }
@@ -511,11 +511,11 @@ paths:
   /:
     get:
       tags: [static]
-      summary: Disc Player's index.html (combined-009), else the image's copy, else the embedded page
+      summary: Disc Player's index.html from the card (combined-009); 404 when no app is installed
       description: |
         The default app's document from the card's `Apps/Disc Player/` with
         `Cache-Control: no-store`; while the card has none (or the player does not
-        own it) the image's copy, and without that the embedded diagnostic page.
+        own it) 404 "No app is installed".
         Query strings are ignored on documents and files, so an app may keep its
         navigation in the URL.
       responses:

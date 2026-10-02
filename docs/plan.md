@@ -97,6 +97,17 @@ started as the package under `disc-boot`, the integration checks on it.
   transport's success.
 - [x] The default app (owner, 2026-10-02): no copy of an app in the package;
   apps live on the card and the manager installs them.
+- [x] Step 1, the gateway only as a package (2026-10-02): the card switch,
+  the supervisor (`--supervise`, `--restart-log`), the image identity file
+  (`--image-info`), the image copy of an app (`--image-app`) and the embedded
+  probe page (`scripts/embed-assets.py`) are gone; `/` without the default
+  app answers 404 "No app is installed". `/api/about` keeps its shape for
+  clients: `supervised` means under the boot layer, `image` is null,
+  `restarts` empty, `page.source` is `card` or null. The MIPS gateway is
+  30 KB smaller (4,814,608 bytes). `apps/probe` stays as the test app the
+  guest checks install on the card. Evidence: `test_gateway` (apps only on
+  the card, the old options refused), `test_webroot`, `test_service`; the
+  guest wrapper moves to the package in step 4.
 - [ ] Guest acceptance of the package on the boot image, once the emulator
   boots it (snowsky-disc-boot, stage 2), then the two-package acceptance with
   diskOS's UI.

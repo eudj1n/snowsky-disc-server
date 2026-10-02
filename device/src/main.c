@@ -2,7 +2,6 @@
 #define _POSIX_C_SOURCE 200809L
 #include "civetweb.h"
 #include "framing.h"
-#include "assets.h"
 #include "webroot.h"
 #include "catalog.h"
 #include "data.h"
@@ -60,16 +59,6 @@ typedef struct {
      * <card>/.disc/playlists, and external ones, which the player's own file browser
      * shows, in <card>/Playlists (owner, 2026-09-29). */
     const char *lists_dir, *external_lists_dir;
-    /* Self-recovery (combined-008): the card switch that stops the service,
-     * and the supervisor's restart log (read for diagnostics). */
-    const char *disable_switch, *restart_log;
-    int disabled;
-    /* The image's own copy of the default app (served when the card has none:
-     * image_app.root is its parent folder, image_app_name its folder), and the
-     * image's identity file, both in the rootfs (combined-008, combined-009). */
-    disc_webroot image_app;
-    const char *image_app_name;
-    const char *image_info;
     /* Under the boot layer (snowsky-disc-boot docs/contract.md): the file whose
      * creation tells boot the service listens, and the folder of boot's status
      * files (boot.json, service.json) the diagnostics show. */
@@ -1869,35 +1858,8 @@ static int catalog(struct mg_connection *c, server *s, int stream) {
 }
 /* GET /api/about (combined-008): what support needs to read without a
  * console. Versions, the image's identity file, which release serves the
- * page, the card and its database, the supervisor's restarts and the newest
+ * page, the card and its database, the boot layer's status and the newest
  * service messages. Read-only; names no credential, track or user file. */
-static void about_restarts(server *s, disc_buffer *b) {
-    disc_buffer_text(b, "[");
-    char text[4097];
-    int fd = s->restart_log ? open(s->restart_log, O_RDONLY | O_NOFOLLOW | O_CLOEXEC) : -1;
-    ssize_t n = 0;
-    struct stat st;
-    if (fd >= 0 && !fstat(fd, &st) && S_ISREG(st.st_mode)) {
-        off_t from = st.st_size > 4096 ? st.st_size - 4096 : 0;
-        n = pread(fd, text, 4096, from);
-    }
-    if (fd >= 0) close(fd);
-    text[n > 0 ? n : 0] = 0;
-    /* The newest ten whole lines. */
-    char *lines[10];
-    int count = 0;
-    char *save = NULL;
-    for (char *line = strtok_r(text, "\n", &save); line; line = strtok_r(NULL, "\n", &save)) {
-        if (count == 10) { memmove(lines, lines + 1, sizeof(lines[0]) * 9); count = 9; }
-        lines[count++] = line;
-    }
-    for (int i = 0; i < count; i++) {
-        if (i) disc_buffer_text(b, ",");
-        if (disc_utf8((const unsigned char *)lines[i], strlen(lines[i]))) disc_buffer_string(b, lines[i], strlen(lines[i]));
-        else disc_buffer_text(b, "null");
-    }
-    disc_buffer_text(b, "]");
-}
 /* A small JSON object file as it is, or null. */
 static void about_json_file(const char *path, disc_buffer *b) {
     char text[4097];
@@ -1920,7 +1882,6 @@ static void about_boot(server *s, disc_buffer *b) {
     about_json_file(snprintf(path, sizeof(path), "%s/service.json", s->boot_status) < (int)sizeof(path) ? path : NULL, b);
     disc_buffer_text(b, "}");
 }
-static void about_image(server *s, disc_buffer *b) { about_json_file(s->image_info, b); }
 /* An app's version as its optional app.json says ({"version":"<text>"}), for the diagnostics. */
 static void app_version(const disc_webroot *from, const char *app, disc_buffer *b) {
     char text[1024], version[33];
@@ -1932,13 +1893,10 @@ static void app_version(const disc_webroot *from, const char *app, disc_buffer *
     if (ok) disc_buffer_string(b, version, strlen(version));
     else disc_buffer_text(b, "null");
 }
-/* Where the default app comes from: the card's Apps folder, the image, or the embedded page. */
+/* The default app, from the card's Apps folder (apps live only on the card). */
 static const disc_webroot *default_app(server *s, const char **app) {
     disc_web_asset asset;
     if (disc_app_open(&s->webroot, DISC_DEFAULT_APP, "", 0, &asset)) { close(asset.fd); *app = DISC_DEFAULT_APP; return &s->webroot; }
-    if (s->image_app.root && disc_app_open(&s->image_app, s->image_app_name, "", 0, &asset)) {
-        close(asset.fd); *app = s->image_app_name; return &s->image_app;
-    }
     *app = NULL;
     return NULL;
 }
@@ -1951,12 +1909,13 @@ static int about_route(struct mg_connection *c, server *s) {
     disc_buffer_string(&b, DISC_BUILD, strlen(DISC_BUILD));
     disc_buffer_text(&b, ",\"api\":1,\"uptime\":");
     disc_buffer_int(&b, (monotonic_ms() - s->started_ms) / 1000);
-    disc_buffer_text(&b, s->restart_log ? ",\"supervised\":true},\"image\":" : ",\"supervised\":false},\"image\":");
-    about_image(s, &b);
+    /* Supervised by the boot layer when it runs as its package; the combined images' identity file
+     * and restart log are gone (image is always null, restarts empty: boot's status tells). */
+    disc_buffer_text(&b, s->boot_status ? ",\"supervised\":true},\"image\":null" : ",\"supervised\":false},\"image\":null");
     disc_buffer_text(&b, ",\"boot\":");
     about_boot(s, &b);
     disc_buffer_text(&b, ",\"page\":{\"source\":");
-    disc_buffer_text(&b, page == &s->webroot ? "\"card\"" : page ? "\"image\"" : "\"embedded\"");
+    disc_buffer_text(&b, page ? "\"card\"" : "null");
     disc_buffer_text(&b, ",\"app\":");
     if (page) disc_buffer_string(&b, DISC_DEFAULT_APP, strlen(DISC_DEFAULT_APP));
     else disc_buffer_text(&b, "null");
@@ -1995,8 +1954,7 @@ static int about_route(struct mg_connection *c, server *s) {
         else disc_buffer_text(&b, "null");
         disc_buffer_text(&b, "}}");
     }
-    disc_buffer_text(&b, ",\"restarts\":");
-    about_restarts(s, &b);
+    disc_buffer_text(&b, ",\"restarts\":[]");
     disc_buffer_text(&b, ",\"log\":");
     disc_log_json(&b);
     disc_buffer_text(&b, "}");
@@ -2065,7 +2023,7 @@ static int apps_route(struct mg_connection *c, server *s) {
     apps_listing l = {.b = &b, .root = &s->webroot};
     disc_buffer_text(&b, "{\"default\":\"" DISC_DEFAULT_APP "\",\"apps\":[");
     disc_apps_list(&s->webroot, list_app, &l);
-    disc_buffer_text(&b, s->image_app.root ? "],\"image\":true}" : "],\"image\":false}");
+    disc_buffer_text(&b, "],\"image\":false}");
     int code = b.overflow ? error(c, 500, "Apps unavailable\n") : response(c, 200, "application/json; charset=utf-8", b.data, b.used);
     free(b.data);
     return code;
@@ -2160,41 +2118,18 @@ static int http_request(struct mg_connection *c, void *arg) {
     const disc_webroot *from = NULL;
     const char *from_app = app;
     if (disc_app_open(&s->webroot, app, path, accepts_gzip(c), &asset)) from = &s->webroot;
-    else if (!strcmp(app, DISC_DEFAULT_APP) && s->image_app.root &&
-             disc_app_open(&s->image_app, s->image_app_name, path, accepts_gzip(c), &asset)) {
-        from = &s->image_app;
-        from_app = s->image_app_name;
-    }
     if (from) {
         char policy[DISC_POLICY_MAX];
         app_policy(from, from_app, policy, sizeof(policy));
         return web_asset_response(c, from, &asset, head, policy);
     }
-    /* The embedded page stands in only while there is no default app at all (the card away,
-     * no image copy); it never fills a hole in an app. */
+    /* Apps live only on the card; without the default app / has nothing to serve. */
     const char *present;
-    if (named || default_app(s, &present)) return error(c, 404, "Not found\n");
-    for (size_t i = 0; i < sizeof(assets)/sizeof(assets[0]); i++)
-        if (!strcmp(uri, assets[i].path)) {
-            if (!head) return response(c, 200, assets[i].type, assets[i].data, assets[i].size);
-            mg_printf(c, "HTTP/1.1 200 OK\r\nContent-Type: %s\r\nContent-Length: %zu\r\n"
-                         "Connection: close\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\n\r\n",
-                      assets[i].type, assets[i].size);
-            return 200;
-        }
+    if (!named && !strcmp(uri, "/") && !default_app(s, &present)) return error(c, 404, "No app is installed\n");
     return error(c, 404, "Not found\n");
 }
 static int port_value(const char *v) { char *end; long p = strtol(v, &end, 10); return *v && !*end && p > 0 && p <= 65535 ? (int)p : 0; }
-/* The card switch (combined-008): <card>/.disc/disabled, any file or folder,
- * stops the service while the card is mounted for the player, so a user can
- * back out in USB storage mode. */
-static int switched_off(server *s) {
-    struct stat st;
-    return s->disable_switch && card_owned(s) && !lstat(s->disable_switch, &st);
-}
-#define DISC_EXIT_DISABLED 3
 static int service_main(int argc, char **argv) {
-    static char image_parent[256];
     server s = {.listen = "127.0.0.1", .authority = "127.0.0.1:7870", .upstream = "127.0.0.1", .port = 7870, .tcp_port = 12100, .http_port = 12103, .lock = PTHREAD_MUTEX_INITIALIZER, .catalog_lock = PTHREAD_MUTEX_INITIALIZER};
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--version")) { puts("disc-native-probe " DISC_SERVICE_VERSION " (" DISC_BUILD ")"); return 0; }
@@ -2221,20 +2156,9 @@ static int service_main(int argc, char **argv) {
         else if (!strcmp(key, "--trash")) s.trash_dir = v;
         else if (!strcmp(key, "--internal-lists")) s.lists_dir = v;
         else if (!strcmp(key, "--external-lists")) s.external_lists_dir = v;
-        else if (!strcmp(key, "--disable-switch")) s.disable_switch = v;
-        else if (!strcmp(key, "--image-app")) {
-            /* The folder of the image's copy of the default app: its parent and its name. */
-            const char *slash = strrchr(v, '/');
-            if (!slash || slash == v || !slash[1] || (size_t)(slash - v) >= sizeof(image_parent)) { disc_log("Invalid --image-app\n"); return 2; }
-            memcpy(image_parent, v, (size_t)(slash - v));
-            image_parent[slash - v] = 0;
-            s.image_app.root = image_parent;
-            s.image_app_name = slash + 1;
-        }
         else if (!strcmp(key, "--catalog")) s.catalog_dir = v;
         else if (!strcmp(key, "--card-catalog")) s.card_catalog_dir = v;
         else if (!strcmp(key, "--card-commands")) s.card_commands = v;
-        else if (!strcmp(key, "--image-info")) s.image_info = v;
         else if (!strcmp(key, "--ready-file")) s.ready_file = v;
         else if (!strcmp(key, "--boot-status")) s.boot_status = v;
         else if (!strcmp(key, "--mdns-name")) s.mdns_name = v;
@@ -2242,8 +2166,6 @@ static int service_main(int argc, char **argv) {
             if (cors_count >= DISC_CORS_MAX || !cors_origin_valid(v)) { disc_log("Invalid --cors-origin\n"); return 2; }
             cors_origins[cors_count++] = v;
         }
-        else if (!strcmp(key, "--restart-log")) s.restart_log = v;
-        else if (!strcmp(key, "--restart-delay-ms")) continue; /* the supervisor's */
         else if (!strcmp(key, "--player-process")) s.player_process = v;
         else if (!strcmp(key, "--proc-root")) s.proc_root = v;
         else if (!strcmp(key, "--observer-interval-ms")) s.observer_interval_ms = (unsigned)port_value(v);
@@ -2255,7 +2177,6 @@ static int service_main(int argc, char **argv) {
         (s.catalog_dir && (s.catalog_dir[0] != '/' || strlen(s.catalog_dir) > 240)) ||
         (s.card_catalog_dir && (s.card_catalog_dir[0] != '/' || strlen(s.card_catalog_dir) > 240 || !media_root(&s))) ||
         (s.card_commands && (s.card_commands[0] != '/' || strlen(s.card_commands) > 240 || !media_root(&s))) ||
-        (s.image_app_name && !disc_app_name_ok(s.image_app_name)) ||
         (s.upload_root && (s.upload_root[0] != '/' || strlen(s.upload_root) > 200)) ||
         (s.data_root && (s.data_root[0] != '/' || strlen(s.data_root) > 200)) ||
         (s.raw_marker && (s.raw_marker[0] != '/' || strlen(s.raw_marker) > 240)) ||
@@ -2267,10 +2188,6 @@ static int service_main(int argc, char **argv) {
         (s.trash_dir && (s.trash_dir[0] != '/' || strlen(s.trash_dir) > 240 || !s.database_file || !media_root(&s))) ||
         (s.lists_dir && (s.lists_dir[0] != '/' || strlen(s.lists_dir) > 240 || !media_root(&s))) ||
         (s.external_lists_dir && (s.external_lists_dir[0] != '/' || strlen(s.external_lists_dir) > 240 || !media_root(&s))) ||
-        (s.disable_switch && (s.disable_switch[0] != '/' || strlen(s.disable_switch) > 240)) ||
-        (s.restart_log && (s.restart_log[0] != '/' || strlen(s.restart_log) > 240)) ||
-        (s.image_app.root && (s.image_app.root[0] != '/' || strlen(s.image_app.root) > 240)) ||
-        (s.image_info && (s.image_info[0] != '/' || strlen(s.image_info) > 240)) ||
         (s.ready_file && (s.ready_file[0] != '/' || strlen(s.ready_file) > 240)) ||
         (s.boot_status && (s.boot_status[0] != '/' || strlen(s.boot_status) > 200)) ||
         (s.mdns_name && (!*s.mdns_name || strlen(s.mdns_name) > 63 || s.mdns_name[0] == '-' ||
@@ -2287,7 +2204,6 @@ static int service_main(int argc, char **argv) {
         disc_log("Invalid options; upstream must be a local interface IPv4\n"); return 2;
     }
     signal(SIGPIPE, SIG_IGN); signal(SIGINT, stop_signal); signal(SIGTERM, stop_signal);
-    if (switched_off(&s)) { disc_log("Disabled by the card switch; not started\n"); return DISC_EXIT_DISABLED; }
     s.started_ms = monotonic_ms();
     char bind[64]; snprintf(bind, sizeof(bind), "%s:%d", s.listen, s.port);
     /* Eight workers (combined-009): the control channel holds one while it is open and two audio
@@ -2325,100 +2241,13 @@ static int service_main(int argc, char **argv) {
     }
     for (int i = 0; i < cors_count; i++) printf("Cross-origin page admitted: %s\n", cors_origins[i]);
     fflush(stdout);
-    for (unsigned tick = 0; !stopping; tick++) {
+    while (!stopping) {
         struct timespec delay = {.tv_sec = 0, .tv_nsec = 100000000};
         nanosleep(&delay, NULL);
         disc_history_poll(history);
-        if (tick % 20 == 19 && switched_off(&s)) { disc_log("Disabled by the card switch; stopping\n"); s.disabled = 1; break; }
     }
     disc_history_stop(history);
-    mg_stop(ctx); mg_exit_library(); pthread_mutex_destroy(&s.lock); return s.disabled ? DISC_EXIT_DISABLED : 0;
+    mg_stop(ctx); mg_exit_library(); pthread_mutex_destroy(&s.lock); return 0;
 }
 
-/* Self-recovery (combined-008): "disc-service --supervise <options>" runs the
- * service in a child process and starts it again after a crash (a signal or
- * an unexpected exit status), at most DISC_RESTARTS_MAX times in ten minutes,
- * waiting 1, 2, 4... seconds (--restart-delay-ms sets the first wait) up to 30.
- * A clean stop, invalid options and the card switch end supervision. Each
- * outcome is a line in --restart-log (bounded, on /run), which the service
- * shows in its diagnostics. SIGTERM and SIGINT pass to the service. */
-#define DISC_RESTARTS_MAX 5
-#define DISC_RESTART_WINDOW_MS (10LL * 60 * 1000)
-static volatile sig_atomic_t supervisor_stop;
-static volatile pid_t supervised;
-static void supervisor_signal(int sig) {
-    supervisor_stop = 1;
-    if (supervised > 0) kill(supervised, sig);
-}
-static void restart_note(const char *log, const char *text) {
-    if (!log) return;
-    char line[160];
-    int n = snprintf(line, sizeof(line), "%lld %s\n", (long long)time(NULL), text);
-    struct stat st;
-    /* Keep it small: past 4 KiB the log starts again with this line. */
-    int fd = open(log, O_WRONLY | O_CREAT | O_APPEND | O_CLOEXEC | O_NOFOLLOW | (!stat(log, &st) && st.st_size > 4096 ? O_TRUNC : 0), 0644);
-    if (fd < 0) return;
-    if (write(fd, line, (size_t)n) < 0) { /* diagnostics only */ }
-    close(fd);
-}
-static int supervise(int argc, char **argv) {
-    const char *log = NULL;
-    long long delay_ms = 1000;
-    for (int i = 1; i + 1 < argc; i++) {
-        if (!strcmp(argv[i], "--restart-log") && argv[i + 1][0] == '/') log = argv[i + 1];
-        if (!strcmp(argv[i], "--restart-delay-ms")) {
-            delay_ms = strtoll(argv[i + 1], NULL, 10);
-            if (delay_ms < 10 || delay_ms > 10000) { fprintf(stderr, "Invalid options\n"); return 2; }
-        }
-    }
-    signal(SIGPIPE, SIG_IGN); signal(SIGTERM, supervisor_signal); signal(SIGINT, supervisor_signal);
-    long long starts[DISC_RESTARTS_MAX];
-    int restarts = 0;
-    for (;;) {
-        pid_t pid = fork();
-        if (pid < 0) { restart_note(log, "cannot start the service"); return 1; }
-        if (pid == 0) {
-            signal(SIGTERM, SIG_DFL); signal(SIGINT, SIG_DFL);
-            _exit(service_main(argc, argv));
-        }
-        supervised = pid;
-        if (supervisor_stop) kill(pid, SIGTERM);
-        int status = 0;
-        while (waitpid(pid, &status, 0) < 0 && errno == EINTR) {}
-        supervised = 0;
-        if (supervisor_stop || (WIFEXITED(status) && WEXITSTATUS(status) == 0)) { restart_note(log, "stopped"); return 0; }
-        if (WIFEXITED(status) && WEXITSTATUS(status) == DISC_EXIT_DISABLED) { restart_note(log, "disabled by the card switch"); return 0; }
-        if (WIFEXITED(status) && WEXITSTATUS(status) == 2) { restart_note(log, "invalid options; not restarted"); return 2; }
-        char why[96];
-        if (WIFSIGNALED(status)) snprintf(why, sizeof(why), "signal %d", WTERMSIG(status));
-        else snprintf(why, sizeof(why), "exit status %d", WEXITSTATUS(status));
-        long long now = monotonic_ms();
-        int recent = 0;
-        for (int i = 0; i < restarts; i++) if (now - starts[i] < DISC_RESTART_WINDOW_MS) starts[recent++] = starts[i];
-        restarts = recent;
-        char text[200];
-        if (restarts >= DISC_RESTARTS_MAX) {
-            snprintf(text, sizeof(text), "stopped after %s: %d restarts in ten minutes", why, restarts);
-            restart_note(log, text);
-            return 1;
-        }
-        starts[restarts++] = now;
-        snprintf(text, sizeof(text), "restarted after %s", why);
-        restart_note(log, text);
-        long long wait = delay_ms << (restarts - 1);
-        if (wait > 30000) wait = 30000;
-        for (long long waited = 0; waited < wait && !supervisor_stop; waited += 100) {
-            struct timespec step = {.tv_sec = 0, .tv_nsec = 100000000};
-            nanosleep(&step, NULL);
-        }
-        if (supervisor_stop) { restart_note(log, "stopped"); return 0; }
-    }
-}
-
-int main(int argc, char **argv) {
-    if (argc > 1 && !strcmp(argv[1], "--supervise")) {
-        argv[1] = argv[0];
-        return supervise(argc - 1, argv + 1);
-    }
-    return service_main(argc, argv);
-}
+int main(int argc, char **argv) { return service_main(argc, argv); }
