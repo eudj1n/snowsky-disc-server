@@ -46,6 +46,11 @@ combined image the service belongs to, "0.9.0" for combined-009),"build" (the so
 "supervised"},"image":<the image's identity file, --image-info
 /opt/disc-web/image.json: variant, firmware version, profile and service
 fingerprints, the page bundle; null when absent or not strict JSON>,
+"boot":{"decision":<the boot layer's boot.json>,"service":<its service.json:
+the package's name and version, the slot, confirmed or not, failures, the
+last request>} (snowsky-disc-boot `docs/contract.md`, "Status"; `--boot-status
+DIR`, each part null when absent or not strict JSON; the whole null outside
+the boot layer),
 "page":{"source":"card"|"image"|"embedded","release"},"card":{"owned"},
 "database":{"state":"ok"|"absent"|"away"|"newer"|"failed","schema","bytes",
 "plays","records","trash","writes":{"failed","lastFailure","lastSuccess",
@@ -56,7 +61,9 @@ reason, "card away", "newer schema", "card full", "input/output" or
 ten lines of the restart log],"log":[{"t","m"}: the newest 32 messages the
 service wrote to standard error]}`. Messages name no credential, track or
 user file (an address locked out of pairing is named). `--version` prints
-the version and the build. `/api/health` carries `"historyWrites":"ok"` or
+the version and the build. Under the boot layer `--ready-file PATH` is
+created once the service listens, which is what boot waits for before it
+counts the package as ready. `/api/health` carries `"historyWrites":"ok"` or
 `"failing"` once the last play the service tried to write failed (a full
 guest card once stopped the history without a word, 2026-09-29); the first
 failure, and each change of reason, is also a service message.

@@ -38,13 +38,28 @@ package: snowsky-disc-boot (`docs/contract.md`, `docs/plan.md`).
 
 ## Stage 1 — the gateway as the boot layer's `service` package
 
-- [ ] The package: `disc-service` and its `package.json` built with
-  snowsky-disc-boot's `scripts/package.py` (`DISC_BOOT_DIR`); the arguments
-  the boot hook used to give it, from the OS and card profiles; the ready
-  signal (`$DISC_BOOT_RUN/ready`) once it listens; its data and the card from
-  `DISC_BOOT_DATA` and `DISC_BOOT_CARD`; no `--supervise` under the boot layer
-  (boot supervises); the boot layer's status (`/run/disc-boot/*.json`) in the
-  diagnostics.
+- [x] The package (2026-10-02): `scripts/build_package.py` lays out
+  `bin/disc-service`, the reviewed catalogs in `catalog/` and `bin/run`, a
+  shell entry that starts the gateway with the arguments the combined images'
+  hook gave it (same profiles, profile fingerprint `9c24f384…`), the slot,
+  card, run and status folders taken from the boot layer's environment, and
+  packs it with snowsky-disc-boot's tool (product and engineering variants).
+  The gateway gained `--ready-file` (written once it listens) and
+  `--boot-status` (`/api/about` shows `boot.decision` and `boot.service`).
+  Boot supervises, so the package passes no `--supervise`, no identity file
+  and no card switch: `.disc/disabled` would make the gateway exit, boot would
+  count a failure and roll a new version back; Volume Up at power-on or the
+  default mode `stock` take its place (decision to confirm with the owner).
+  Evidence: `test_gateway` (the ready file follows the listener; `boot` in
+  `/api/about`, null outside the boot layer or for a damaged file),
+  `test_package_build` (the layout, the start script's options against the
+  hook's, the engineering variant, refused hard-float binaries, and the host
+  gateway installed from the card by `disc-boot` after Play, confirmed and
+  reporting it), and on the disposable V2.57 guest
+  (`tests/integration/package_guest.py`): the MIPS package under the MIPS
+  `disc-boot` beside stock, ready, confirmed after 184 s, `/api/health` and
+  stock's library through `/api/data/library_summary`, stopped through the
+  boot program, the stack's companion restored.
 - [ ] Updates: a package received through the gateway, checked
   (`disc-boot verify`), staged into the inactive slot and activated by a
   request; our signature (ed25519) on released packages and the usual

@@ -70,6 +70,10 @@ typedef struct {
     disc_webroot image_app;
     const char *image_app_name;
     const char *image_info;
+    /* Under the boot layer (snowsky-disc-boot docs/contract.md): the file whose
+     * creation tells boot the service listens, and the folder of boot's status
+     * files (boot.json, service.json) the diagnostics show. */
+    const char *ready_file, *boot_status;
     /* The reviewed catalogs (combined-009): the image's (catalog_dir), the
      * card's queries.json and store.json (card_catalog_dir) and, on the
      * engineering image only, the card's commands.json (card_commands). */
@@ -1894,10 +1898,11 @@ static void about_restarts(server *s, disc_buffer *b) {
     }
     disc_buffer_text(b, "]");
 }
-static void about_image(server *s, disc_buffer *b) {
+/* A small JSON object file as it is, or null. */
+static void about_json_file(const char *path, disc_buffer *b) {
     char text[4097];
     ssize_t n = -1;
-    int fd = s->image_info ? open(s->image_info, O_RDONLY | O_NOFOLLOW | O_CLOEXEC) : -1;
+    int fd = path ? open(path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC) : -1;
     struct stat st;
     if (fd >= 0 && !fstat(fd, &st) && S_ISREG(st.st_mode) && st.st_size > 1 && st.st_size <= 4096) n = read(fd, text, (size_t)st.st_size);
     if (fd >= 0) close(fd);
@@ -1905,6 +1910,17 @@ static void about_image(server *s, disc_buffer *b) {
     if (n > 1 && disc_json_object(text, (size_t)n)) disc_buffer_put(b, text, (size_t)n);
     else disc_buffer_text(b, "null");
 }
+/* The boot layer's decision and this service's role (its package, slot, confirmation), or null. */
+static void about_boot(server *s, disc_buffer *b) {
+    if (!s->boot_status) { disc_buffer_text(b, "null"); return; }
+    char path[256];
+    disc_buffer_text(b, "{\"decision\":");
+    about_json_file(snprintf(path, sizeof(path), "%s/boot.json", s->boot_status) < (int)sizeof(path) ? path : NULL, b);
+    disc_buffer_text(b, ",\"service\":");
+    about_json_file(snprintf(path, sizeof(path), "%s/service.json", s->boot_status) < (int)sizeof(path) ? path : NULL, b);
+    disc_buffer_text(b, "}");
+}
+static void about_image(server *s, disc_buffer *b) { about_json_file(s->image_info, b); }
 /* An app's version as its optional app.json says ({"version":"<text>"}), for the diagnostics. */
 static void app_version(const disc_webroot *from, const char *app, disc_buffer *b) {
     char text[1024], version[33];
@@ -1937,6 +1953,8 @@ static int about_route(struct mg_connection *c, server *s) {
     disc_buffer_int(&b, (monotonic_ms() - s->started_ms) / 1000);
     disc_buffer_text(&b, s->restart_log ? ",\"supervised\":true},\"image\":" : ",\"supervised\":false},\"image\":");
     about_image(s, &b);
+    disc_buffer_text(&b, ",\"boot\":");
+    about_boot(s, &b);
     disc_buffer_text(&b, ",\"page\":{\"source\":");
     disc_buffer_text(&b, page == &s->webroot ? "\"card\"" : page ? "\"image\"" : "\"embedded\"");
     disc_buffer_text(&b, ",\"app\":");
@@ -2217,6 +2235,8 @@ static int service_main(int argc, char **argv) {
         else if (!strcmp(key, "--card-catalog")) s.card_catalog_dir = v;
         else if (!strcmp(key, "--card-commands")) s.card_commands = v;
         else if (!strcmp(key, "--image-info")) s.image_info = v;
+        else if (!strcmp(key, "--ready-file")) s.ready_file = v;
+        else if (!strcmp(key, "--boot-status")) s.boot_status = v;
         else if (!strcmp(key, "--mdns-name")) s.mdns_name = v;
         else if (!strcmp(key, "--cors-origin")) {
             if (cors_count >= DISC_CORS_MAX || !cors_origin_valid(v)) { disc_log("Invalid --cors-origin\n"); return 2; }
@@ -2251,6 +2271,8 @@ static int service_main(int argc, char **argv) {
         (s.restart_log && (s.restart_log[0] != '/' || strlen(s.restart_log) > 240)) ||
         (s.image_app.root && (s.image_app.root[0] != '/' || strlen(s.image_app.root) > 240)) ||
         (s.image_info && (s.image_info[0] != '/' || strlen(s.image_info) > 240)) ||
+        (s.ready_file && (s.ready_file[0] != '/' || strlen(s.ready_file) > 240)) ||
+        (s.boot_status && (s.boot_status[0] != '/' || strlen(s.boot_status) > 200)) ||
         (s.mdns_name && (!*s.mdns_name || strlen(s.mdns_name) > 63 || s.mdns_name[0] == '-' ||
                          s.mdns_name[strlen(s.mdns_name) - 1] == '-' ||
                          strspn(s.mdns_name, "abcdefghijklmnopqrstuvwxyz0123456789-") != strlen(s.mdns_name))) ||
@@ -2295,6 +2317,12 @@ static int service_main(int argc, char **argv) {
         if (disc_history_start(&history, &config)) disc_log("Play observer did not start\n");
     }
     printf("DISC native probe listening on %s; authority %s; local upstream %s\n", bind, s.authority, s.upstream);
+    if (s.ready_file) {
+        /* Listening: the boot layer may count the service as ready. */
+        int ready = open(s.ready_file, O_WRONLY | O_CREAT | O_TRUNC | O_NOFOLLOW | O_CLOEXEC, 0644);
+        if (ready < 0) disc_log("The ready file could not be written\n");
+        else close(ready);
+    }
     for (int i = 0; i < cors_count; i++) printf("Cross-origin page admitted: %s\n", cors_origins[i]);
     fflush(stdout);
     for (unsigned tick = 0; !stopping; tick++) {

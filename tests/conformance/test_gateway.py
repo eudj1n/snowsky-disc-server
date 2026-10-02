@@ -1509,10 +1509,33 @@ class GatewayTests(unittest.TestCase):
         doc = json.loads(self.http('GET', '/api/about')[1])
         self.assertIn("The origins.json of an app was rejected; it stays same-origin", [entry['m'] for entry in doc['log']])
         self.assertNotIn(SERIAL.encode(), self.http('GET', '/api/about')[1])
+        self.assertIsNone(doc['boot'], 'outside the boot layer')
         # A damaged identity file shows as null; the route takes no query.
         image.write_text('{"variant": tru}')
         self.assertIsNone(json.loads(self.http('GET', '/api/about')[1])['image'])
         self.assertEqual(self.http('GET', '/api/about?x=1')[0], 405)
+
+    def test_under_the_boot_layer_it_says_when_it_listens_and_shows_boot(self):
+        status = self.root/'disc-boot'
+        status.mkdir()
+        (status/'boot.json').write_text('{"schema":1,"mode":"platform","reason":"default"}\n')
+        (status/'service.json').write_text('{"schema":1,"role":"service","state":"starting","name":"disc-server","version":"1"}\n')
+        ready = self.root/'ready'
+        www, _ = self.publish()
+        self.start(www, extra=('--ready-file', str(ready), '--boot-status', str(status)))
+        for _ in range(50):
+            if ready.exists():
+                break
+            time.sleep(0.05)
+        self.assertTrue(ready.is_file(), 'the ready file follows the listener')
+        boot = json.loads(self.http('GET', '/api/about')[1])['boot']
+        self.assertEqual((boot['decision']['mode'], boot['service']['name'], boot['service']['state']), ('platform', 'disc-server', 'starting'))
+        (status/'service.json').write_text('{"state": confirm')
+        self.assertIsNone(json.loads(self.http('GET', '/api/about')[1])['boot']['service'])
+        for option in ('--ready-file', '--boot-status'):
+            with self.subTest(option=option):
+                result = subprocess.run([*SERVICE_COMMAND, option, 'relative/path'], capture_output=True, timeout=10)
+                self.assertEqual(result.returncode, 2)
 
     def test_apps_are_plain_folders_served_with_their_own_origins(self):
         import gzip

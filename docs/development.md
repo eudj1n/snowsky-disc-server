@@ -24,7 +24,7 @@ for the apps and the card's catalog override.
 | `device/vendor/` | Pinned CivetWeb, jsmn and SQLite sources with licenses |
 | `apps/probe/` | Embedded RU/EN diagnostic browser page |
 | `firmware/` | Reviewed profiles and catalogs: commands, queries, store, hosted, origins, OS facts, card layout |
-| `scripts/` | Builds, tests, catalog tools, card tools (`app_bundle.py`, `card_move.py`), emulator orchestration |
+| `scripts/` | Builds, the package (`build_package.py`), tests, catalog tools, card tools (`app_bundle.py`, `card_move.py`), emulator orchestration |
 | `tests/conformance/` | Synthetic network, protocol, catalog and profile tests |
 | `tests/integration/` | Disposable V2.57 integration checks |
 | `docs/` | Architecture, contracts, design and validation |
@@ -62,6 +62,37 @@ qemu-user never reaches that path. `scripts/build.sh mips` fails unless
 `disc-service` reports `FP ABI: Soft float` and contains no FPU instructions.
 Output: `build/mips/disc-service` and `framing-test`, static MIPS
 little-endian soft-float with the probe page embedded.
+
+## The service package
+
+On the player the gateway is the boot layer's `service` package
+(snowsky-disc-boot `docs/contract.md`). `scripts/build_package.py` lays it
+out and packs it with snowsky-disc-boot's `scripts/package.py` (found through
+`DISC_BOOT_DIR`, by default the sibling checkout):
+
+```sh
+bash scripts/build.sh mips
+python3 scripts/build_package.py --output work/package-001            # the product variant
+python3 scripts/build_package.py --output work/package-002 --engineering  # the card's commands and raw mode
+```
+
+The package holds `bin/disc-service`, the reviewed catalogs in `catalog/`
+and `bin/run`, its entry: a shell script that starts the gateway with the
+arguments the combined images' boot hook gave it, computed from the same
+profiles, with the slot, the card, the run folder and the status folder from
+the boot layer's environment (`$DISC_BOOT_SLOT`, `$DISC_BOOT_CARD`,
+`$DISC_BOOT_RUN`, `$DISC_BOOT_STATUS`). The gateway writes
+`$DISC_BOOT_RUN/ready` once it listens (`--ready-file`) and shows the boot
+layer's status in `/api/about` (`--boot-status`). Boot supervises it, so the
+package passes no `--supervise`, no image identity file and no card switch:
+Volume Up at power-on, or the default mode `stock`, replaces `.disc/disabled`.
+The version defaults to `<date>-<commit>` (`-engineering` for that variant).
+Stage it on a card for the recovery with Play with snowsky-disc-boot's
+`scripts/package.py stage`.
+
+`tests/integration/package_guest.py --package <zip>` runs the MIPS package
+under the MIPS `disc-boot` in the disposable V2.57 guest beside stock (the
+stack's own companion is stopped for it and started again afterwards).
 
 ## Disposable emulator
 
