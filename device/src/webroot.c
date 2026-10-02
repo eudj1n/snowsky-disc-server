@@ -29,7 +29,7 @@ static int token_name(const char *s, size_t n) {
 
 int disc_app_name_ok(const char *name) {
     size_t n = name ? strlen(name) : 0;
-    if (!n || n > DISC_APP_NAME_MAX || name[0] == '.' || name[0] == ' ' || !disc_utf8((const unsigned char *)name, n)) return 0;
+    if (!n || n > DISC_APP_NAME_MAX || name[0] == '.' || name[0] == ' ' || name[n - 1] == ' ' || !disc_utf8((const unsigned char *)name, n)) return 0;
     for (size_t i = 0; i < n; i++) {
         unsigned char c = (unsigned char)name[i];
         if (c < 0x20 || c == 0x7f || c == '/' || c == '\\') return 0;

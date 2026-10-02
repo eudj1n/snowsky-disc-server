@@ -12,7 +12,7 @@ LIVE = ['/api/health', '/api/catalog', '/api/catalog/stream', '/api/websocket', 
         '/api/media/{kind}/{path}', '/api/media/current-lyrics', '/api/device', '/api/history', '/api/favorites/{songId}',
         '/api/store', '/api/store/{collection}/{operation}', '/api/trash', '/api/trash/{id}', '/api/trash/{id}/restore', '/api/about',
         '/api/card/leftovers', '/api/card/leftovers/trash', '/api/lists', '/api/lists/{scope}', '/api/lists/{scope}/{name}',
-        '/api/card/folder/{folder}', '/api/card/tree/{folder}', '/api/apps/default']
+        '/api/card/folder/{folder}', '/api/card/tree/{folder}', '/api/apps/default', '/api/apps/{app}']
 PLANNED = ['/api/data/{query}', '/api/stock/{route}']
 
 

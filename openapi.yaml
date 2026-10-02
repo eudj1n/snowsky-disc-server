@@ -30,6 +30,8 @@ tags:
     description: Planned Stage B read-only data level over the stock SQLite databases.
   - name: lists
     description: M3U lists of the service's own on the card (combined-009).
+  - name: manager
+    description: The application manager's own port (7871 by default); changes need the serial number.
 paths:
   /api/health:
     get:
@@ -560,6 +562,43 @@ paths:
         to the manager). `chosen` is the manager's choice (null without one).
       responses:
         '200': { description: "{default, chosen, apps:[{name, version, default}], image: false}" }
+    post:
+      tags: [manager]
+      summary: Install the app a zip holds (the manager's port only)
+      description: |
+        The body is a zip (Content-Length required, at most 40 MiB) with one top
+        folder named after the app, checked by scripts/app_bundle.py's rules and
+        swapped in for an installed app of that name only once complete. Needs
+        X-Disc-Token (the serial number) and a fresh X-Disc-Request. The apps'
+        port answers 405.
+      requestBody:
+        required: true
+        content:
+          application/zip: { schema: { type: string, format: binary } }
+      responses:
+        '200': { description: "{name, version, files, bytes}" }
+        '400': { description: The upload ended early }
+        '403': { description: Serial number or request ID missing, or another origin }
+        '409': { description: Another installation or removal is running, or no apps folder }
+        '411': { description: No Content-Length, or a chunked body }
+        '413': { description: Larger than 40 MiB }
+        '422': { description: "The zip breaks a rule; the text names the first" }
+        '503': { description: The card is not owned by the player }
+        '507': { description: Not enough room on the card for the app and the service's database }
+  /api/apps/{app}:
+    delete:
+      tags: [manager]
+      summary: Remove an installed app (the manager's port only)
+      description: |
+        Bodyless, without a query; a removed chosen app is no longer chosen.
+        Needs X-Disc-Token (the serial number) and a fresh X-Disc-Request.
+      parameters:
+        - { in: path, name: app, required: true, schema: { type: string, maxLength: 64 }, description: The app folder's name, percent-encoded }
+      responses:
+        '200': { description: The apps listing, as GET /api/apps }
+        '403': { description: Serial number or request ID missing, or another origin }
+        '404': { description: No such app installed }
+        '409': { description: An installation is running }
   /api/apps/default:
     put:
       tags: [manager]

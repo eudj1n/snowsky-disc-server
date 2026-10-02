@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -23,10 +24,12 @@
 
 /* A path on the card: absolute below the mount (not the mount itself), no
  * empty, dot or hidden components (so never the service's .disc), UTF-8
- * without control characters. */
+ * without control characters, and never the apps (Apps/ changes only through
+ * the application manager, owner 2026-10-02; FAT names ignore case). */
 static int card_path(const char *card, const char *path) {
     size_t c = strlen(card), n = strlen(path);
     if (n <= c + 1 || n > MAX_PATH || strncmp(path, card, c) || path[c] != '/') return 0;
+    if (!strncasecmp(path + c + 1, "Apps", 4) && (path[c + 5] == '/' || !path[c + 5])) return 0;
     if (strstr(path + c, "//") || strstr(path + c, "/.") || path[n - 1] == '/') return 0;
     if (!disc_utf8((const unsigned char *)path, n)) return 0;
     for (size_t i = 0; i < n; i++) if ((unsigned char)path[i] < 0x20) return 0;

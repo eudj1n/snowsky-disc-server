@@ -45,6 +45,34 @@ installed, else the only app installed; with none, or several and no choice,
 it redirects (302) to the manager on the same host. `PUT /api/apps/default`
 (the manager's port) chooses or clears the app.
 
+The manager installs and removes apps (the manager's port only, each with
+the serial number, a fresh request ID and pacing; one at a time, 409
+otherwise):
+
+- `POST /api/apps` with a zip as the body (`Content-Length` required, at
+  most 40 MiB) installs the app it holds. The zip is the one
+  `scripts/app_bundle.py zip` writes, or any zip with one top folder named
+  after the app: the upload goes to `<card>/.disc/app-upload.zip`, then every
+  entry is checked by the packing tool's rules (`device/src/apps.c`, kept in
+  step by `tests/conformance/test_app_install.py`): names
+  `[A-Za-z0-9_-][A-Za-z0-9_.-]{0,79}` at most six deep, the served types
+  only, 4 MiB a file, 32 MiB and 512 files an app, gzip twins only of text
+  files beside them, no reviewed catalog, `index.html` at the root, no
+  inline script, style, handler or `javascript:` URL and no root-absolute
+  reference. Hidden names and `__MACOSX` are skipped; links, other special
+  files, encrypted entries, methods other than stored and deflate, split and
+  zip64 archives are refused. Entries are inflated one by one into
+  `Apps/.<App>.installing` with their size and CRC-32 checked, the files are
+  checked again, then that folder takes the app's place (the previous one
+  goes only after the swap); the card must keep 8 MiB free beyond the app
+  for the service's database. Answers `{"name","version","files","bytes"}`;
+  422 with the first refusal as text, 507 without room, 500 when the card
+  fails (the installed app stays). The upload is deleted either way.
+- `DELETE /api/apps/<App>` (the name percent-encoded, no body) removes an
+  installed app (a folder with an `index.html`): renamed aside, then
+  deleted. A removed chosen app is no longer chosen. Answers the apps
+  listing, 404 for anything else.
+
 The settings file (`--settings`, in the package `$DISC_BOOT_DATA/server.env`)
 holds `PORT`, `MANAGER_PORT` and `DEFAULT_APP`: `KEY=VALUE` lines with known
 keys only, read as data and never executed, `#` comment lines; ports
@@ -652,7 +680,10 @@ client's.
 
 `--trash <card>/.disc/trash` (combined-008, with `--database`): files and
 folders are moved into the trash instead of being deleted; stock's own
-`DELETE /file/` stays denied.
+`DELETE /file/` stays denied. The card's `Apps` folder and what is in it
+(any case) are refused as `.disc` is: apps change only through the manager
+(stock's folder creation and uploads below `/tmp/sdcard/Apps` answer 403
+too).
 
 - `GET /api/trash` → `{"entries":[{"id","path","kind":"file"|"folder","bytes",
   "files","trashed","complete"}],"count","bytes","truncated"}`, newest first,

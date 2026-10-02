@@ -2,6 +2,7 @@
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import http.client
 import importlib.util
+import io
 import json
 from contextlib import closing
 from pathlib import Path
@@ -15,6 +16,7 @@ import tempfile
 import threading
 import time
 import unittest
+import zipfile
 from test_service import Peer, TCP, WS, SERVICE_COMMAND, TEST_OUTPUT, free_port, record
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -1203,7 +1205,9 @@ class GatewayTests(unittest.TestCase):
         self.assertEqual(doc['entries'][0], {'id': 2, 'path': str(album), 'kind': 'folder', 'bytes': 115, 'files': 3,
                                              'trashed': doc['entries'][0]['trashed'], 'complete': True})
         # Refused: the card root, the service's folder, dot parts, what is missing, links, and what the player holds open.
+        # The apps change only through the application manager.
         for path, status in [(str(self.card), 400), (str(bin), 400), (str(self.card/'.disc'/'disc.db'), 400),
+                             (str(self.card/'Apps'), 400), (str(self.card/'apps'/'Disc Player'), 400), (str(self.card/'Apps'/'Disc Player'/'index.html'), 400),
                              (str(self.card) + '/x/../Single.flac', 400), ('/etc/hosts', 400), (str(self.card/'None.flac'), 404)]:
             self.assertEqual(self.trash('POST', body={'path': path})[0], status, path)
         linked = self.card/'Linked'; linked.mkdir(); (linked/'l.flac').symlink_to(self.root/'sn.txt')
@@ -1685,6 +1689,103 @@ class GatewayTests(unittest.TestCase):
             self.assertEqual(self.health()[0], 200)
             self.assertIn(f"The manager's port {taken} could not be taken".encode(), self.log_text())
 
+    def app_zip(self, name='Radio', version='1.0.0'):
+        """An app's zip as scripts/app_bundle.py packs it."""
+        source = self.root/f'src-{name}-{version}'
+        source.mkdir()
+        (source/'index.html').write_bytes(b'<script type="module" src="./app.js"></script>')
+        (source/'app.js').write_bytes(f'fetch("/api/health") // {version}'.encode())
+        out = self.root/f'{name}-{version}.zip'
+        bundle.zip_app(bundle.build_app(source, name, version), name, out)
+        return out.read_bytes()
+
+    @staticmethod
+    def raw_zip(files):
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, 'w') as archive:
+            for name, data in files.items():
+                archive.writestr(name, data)
+        return buffer.getvalue()
+
+    def manager_status(self, head):
+        """The status the manager answers a POST /api/apps whose head carries these lines and no body."""
+        with socket.create_connection(('127.0.0.1', self.manager_port), timeout=10) as raw:
+            raw.sendall(f'POST /api/apps HTTP/1.1\r\nHost: {self.manager_authority}\r\nX-Disc-Token: {TOKEN}\r\n'
+                        f'X-Disc-Request: {self.next_request()}\r\n{head}\r\n'.encode())
+            return int(raw.recv(64).split(b' ')[1])
+
+    def test_the_manager_installs_and_removes_apps(self):
+        settings = self.root/'server.env'
+        www, report = self.publish()
+        self.start(www, extra=('--settings', str(settings)))
+        radio, zip_type = self.app_zip(), {'Content-Type': 'application/zip'}
+        # Installing needs the serial number, and the apps' port has no such route.
+        self.assertEqual(self.manager('POST', '/api/apps', {**zip_type, 'X-Disc-Request': self.next_request()}, radio)[0], 403)
+        self.assertEqual(self.http('POST', '/api/apps', {'X-Disc-Token': TOKEN, 'X-Disc-Request': self.next_request()}, radio)[0], 405)
+        self.assertFalse((self.card/'Apps'/'Radio').exists())
+        status, body, _ = self.manager('POST', '/api/apps', zip_type, radio, change=True)
+        self.assertEqual(status, 200, body)
+        files = {p.name: p.stat().st_size for p in (self.card/'Apps'/'Radio').iterdir()}
+        self.assertEqual(json.loads(body), {'name': 'Radio', 'version': '1.0.0', 'files': 3, 'bytes': sum(files.values())})
+        self.assertEqual(self.http('GET', '/apps/Radio/app.js')[1], b'fetch("/api/health") // 1.0.0')
+        listing = json.loads(self.manager('GET', '/api/apps')[1])
+        self.assertIn({'name': 'Radio', 'version': '1.0.0', 'default': False}, listing['apps'])
+        self.assertFalse((self.card/'.disc'/'app-upload.zip').exists(), 'the upload goes once installed')
+        self.assertEqual([p.name for p in (self.card/'Apps').iterdir() if p.name.startswith('.')], [])
+        # A newer version replaces the app; a refused one keeps it.
+        self.assertEqual(self.manager('POST', '/api/apps', zip_type, self.app_zip(version='1.1.0'), change=True)[0], 200)
+        refusals = ((self.raw_zip({'Radio/index.html': b'<script>go()</script>'}),
+                     422, b'index.html: inline script is blocked by the gateway CSP; move it into a file\n'),
+                    (b'PK not a zip', 422, b'Not a zip archive\n'))
+        for archive, code, problem in refusals:
+            with self.subTest(problem=problem):
+                self.assertEqual(self.manager('POST', '/api/apps', zip_type, archive, change=True)[:2], (code, problem))
+        self.assertEqual(self.http('GET', '/apps/Radio/app.js')[1], b'fetch("/api/health") // 1.1.0')
+        self.assertFalse((self.card/'.disc'/'app-upload.zip').exists())
+        # Its framing and size are checked before anything is read.
+        for head, code in ((f'Content-Length: {40 * 1024 * 1024 + 1}\r\n', 413), ('Transfer-Encoding: chunked\r\n', 411), ('', 411)):
+            with self.subTest(head=head):
+                self.assertEqual(self.manager_status(head), code)
+        # Removing: the serial number again; a chosen app that goes is no longer chosen.
+        self.assertEqual(self.manager('PUT', '/api/apps/default', body={'name': 'Radio'}, change=True)[0], 200)
+        self.assertEqual(self.manager('DELETE', '/api/apps/Radio', {'X-Disc-Request': self.next_request()}, b'')[0], 403)
+        status, body, _ = self.manager('DELETE', '/api/apps/Radio', body=b'', change=True)
+        self.assertEqual(status, 200, body)
+        listing = json.loads(body)
+        self.assertEqual((listing['default'], listing['chosen'], [a['name'] for a in listing['apps']]), ('Disc Player', None, ['Disc Player']))
+        self.assertNotIn('DEFAULT_APP', settings.read_text())
+        self.assertFalse((self.card/'Apps'/'Radio').exists())
+        self.assertEqual(self.http('GET', '/')[1], (report['app']/'index.html').read_bytes())
+        for path in ('/api/apps/Radio', '/api/apps/..%2FApps', '/api/apps/%2E%2E', '/api/apps/.disc', '/api/apps/default'):
+            with self.subTest(path=path):
+                self.assertEqual(self.manager('DELETE', path, body=b'', change=True)[0], 404)
+        self.assertEqual(self.manager('DELETE', '/api/apps/Disc%20Player', body=b'{}', change=True)[0], 405)
+        self.assertEqual(self.manager('DELETE', '/api/apps/' + quote('Disc Player'), body=b'', change=True)[0], 200)
+        status, _, headers = self.http('GET', '/')
+        self.assertEqual((status, headers['location']), (302, f'http://127.0.0.1:{self.manager_port}/'), 'no app is left')
+
+    def test_the_manager_installs_one_app_at_a_time(self):
+        www, _ = self.publish()
+        self.start(www)
+        radio = self.app_zip()
+        upload = self.card/'.disc'/'app-upload.zip'
+        with socket.create_connection(('127.0.0.1', self.manager_port), timeout=10) as slow:
+            slow.sendall(f'POST /api/apps HTTP/1.1\r\nHost: {self.manager_authority}\r\nX-Disc-Token: {TOKEN}\r\n'
+                         f'X-Disc-Request: {self.next_request()}\r\nContent-Length: {len(radio)}\r\n\r\n'.encode() + radio[:100])
+            for _ in range(100):
+                if upload.exists(): break
+                time.sleep(.02)
+            self.assertTrue(upload.exists())
+            self.assertEqual(self.manager('POST', '/api/apps', None, radio, change=True)[:2], (409, b'Another app is being installed\n'))
+            self.assertEqual(self.manager('DELETE', '/api/apps/Disc%20Player', body=b'', change=True)[0], 409)
+        # The upload that ended early leaves nothing behind.
+        for _ in range(100):
+            if not upload.exists(): break
+            time.sleep(.02)
+        self.assertFalse(upload.exists())
+        self.assertFalse((self.card/'Apps'/'Radio').exists())
+        self.assertEqual(self.manager('POST', '/api/apps', None, radio, change=True)[0], 200)
+
     def test_a_cue_image_counts_each_track_and_the_skip_rule_sees_its_title(self):
         import sqlite3
         image_folder = self.card/'Live'; image_folder.mkdir()
@@ -2029,6 +2130,10 @@ class GatewayTests(unittest.TestCase):
         for path in ('/api/stock/dir/tmp/sdcard/.disc/Created', '/api/stock/dir/tmp/sdcard/Music/.hidden'):
             status, body, _ = self.http('POST', path, auth())
             self.assertEqual((status, body), (403, b'Hidden folders cannot be changed\n'), path)
+        # Nor the apps: they change only through the application manager.
+        for path in ('/api/stock/dir/tmp/sdcard/Apps', '/api/stock/dir/tmp/sdcard/apps/Disc%20Player/x'):
+            status, body, _ = self.http('POST', path, auth())
+            self.assertEqual((status, body), (403, b'Apps change only through the application manager\n'), path)
         self.assertEqual(len(self.stock.requests), before)
         # An ordinary folder is created through stock as before.
         self.assertEqual(self.http('POST', '/api/stock/dir/tmp/sdcard/Music', auth())[0], 200)
@@ -2099,6 +2204,9 @@ class GatewayTests(unittest.TestCase):
                      '/audio/tmp/sdcard/Album/.disc/a.mp3', '/audio/tmp/sdcard/.hidden/a.flac', '/audio/tmp/sdcard/Album/.flac'):
             status, body = self.upload(path, b'abcd')[:2]
             self.assertEqual((status, body), (403, b'Hidden folders cannot be changed\n'), path)
+        for path in ('/audio/tmp/sdcard/Apps/Disc%20Player/cover.png', '/audio/tmp/sdcard/APPS/a.flac'):
+            status, body = self.upload(path, b'abcd')[:2]
+            self.assertEqual((status, body), (403, b'Apps change only through the application manager\n'), path)
         for path in ('/audio/tmp/sdcard/Album/notes.txt', '/audio/tmp/sdcard/Album/Track.flac.exe', '/audio/tmp/sdcard/Album/flac'):
             status, body = self.upload(path, b'abcd')[:2]
             self.assertEqual((status, body), (403, b'Only music, lyrics and cover names can be uploaded\n'), path)

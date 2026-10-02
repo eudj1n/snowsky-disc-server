@@ -89,7 +89,8 @@ def check_name(name: str):
 
 
 def check_csp(name: str, data: bytes):
-    if name.endswith('.html'):
+    kind = name.lower()  # FAT names ignore case, and so does the gateway's type for a file
+    if kind.endswith('.html'):
         for pattern, what in ((INLINE_SCRIPT, 'inline script'), (INLINE_STYLE, 'inline style'),
                               (INLINE_HANDLER, 'inline event handler'), (SCRIPT_URL, 'javascript: URL')):
             if pattern.search(data):
@@ -97,7 +98,7 @@ def check_csp(name: str, data: bytes):
         if DOCUMENT_ROOT_REFERENCE.search(data):
             raise ValueError(f'{name}: a root-absolute href or src resolves only at /; use relative references '
                              '(Vite: base "./")')
-    elif name.endswith(('.js', '.mjs', '.css')):
+    elif kind.endswith(('.js', '.mjs', '.css')):
         match = ROOT_ASSET.search(data)
         if match:
             raise ValueError(f'{name}: root-absolute asset reference {match.group(0)[1:].decode()} resolves only at /; '
@@ -117,7 +118,7 @@ def app_files(source: Path) -> dict[str, bytes]:
         if stat.S_ISDIR(info.st_mode):
             continue
         name = relative.as_posix()
-        if name.endswith('.gz') and name[:-3].endswith(COMPRESSIBLE) and (source/name[:-3]).is_file():
+        if name.lower().endswith('.gz') and name[:-3].lower().endswith(COMPRESSIBLE) and (source/name[:-3]).is_file():
             # A pre-compressed twin of a file beside it; the gateway serves it for that file only.
             data = path.read_bytes()
             if not data.startswith(b'\x1f\x8b') or info.st_size > MAX_FILE:

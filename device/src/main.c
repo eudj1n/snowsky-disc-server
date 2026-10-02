@@ -4,6 +4,7 @@
 #include "framing.h"
 #include "webroot.h"
 #include "settings.h"
+#include "apps.h"
 #include "catalog.h"
 #include "data.h"
 #include "media.h"
@@ -67,7 +68,7 @@ typedef struct {
     const char *ready_file, *boot_status;
     /* The application manager (owner, 2026-10-02): its own listener and origin; the settings file
      * (ports, the app served at "/") as last read or written, guarded by lock. */
-    int manager_port;
+    int manager_port, apps_active;
     const char *manager_authority, *settings_file;
     disc_settings settings;
     /* The reviewed catalogs (combined-009): the image's (catalog_dir), the
@@ -1807,6 +1808,12 @@ static int track_sounding(void *arg, const char *path, const char *title) {
     disc_log("Skip rule: %s\n", moved ? "skipped to the next track" : "next sent, not confirmed; not retried");
     return 1; /* "next" was sent: the track is not a play, confirmed or not */
 }
+/* The card's Apps folder changes only through the application manager (owner, 2026-10-02);
+ * FAT folds case. */
+static int under_apps(const char *stock_path) {
+    const char *at = strstr(stock_path, "/tmp/sdcard/");
+    return at && !strncasecmp(at + 12, "Apps", 4) && (at[16] == '/' || !at[16]);
+}
 static int stock_request(struct mg_connection *c, server *s, const char *uri) {
     const struct mg_request_info *request = mg_get_request_info(c);
     const char *method = request->request_method, *path = uri + 10; /* after "/api/stock" */
@@ -1832,6 +1839,7 @@ static int stock_request(struct mg_connection *c, server *s, const char *uri) {
     if (route->mutation) {
         /* Hidden folders (the service's own .disc among them) are never changed through stock. */
         if (strstr(path, "/.")) { code = error(c, 403, "Hidden folders cannot be changed\n"); goto out; }
+        if (under_apps(path)) { code = error(c, 403, "Apps change only through the application manager\n"); goto out; }
         const char *token = mg_get_header(c, "X-Disc-Token"), *request_id = mg_get_header(c, "X-Disc-Request");
         if (header_count(c, "X-Disc-Token") != 1 || !token || strlen(token) > 64 ||
             !credential_matches(s, request->remote_addr, token, strlen(token))) { code = error(c, 403, "Token required\n"); goto out; }
@@ -2248,6 +2256,109 @@ static int default_app_route(struct mg_connection *c, server *s) {
     disc_log(clear ? "The default app is no longer chosen\n" : "The default app was chosen\n");
     return apps_route(c, s);
 }
+/* POST /api/apps: a zip of an app (one top folder named after it), checked and installed
+ * on the card by apps.c; written to <card>/.disc/app-upload.zip on the way. */
+static int app_install_route(struct mg_connection *c, server *s) {
+    const struct mg_request_info *r = mg_get_request_info(c);
+    const char *cl = mg_get_header(c, "Content-Length");
+    unsigned length = 0;
+    if (r->query_string) return error(c, 405, "The route takes no query\n");
+    if (mg_get_header(c, "Transfer-Encoding") || header_count(c, "Content-Length") != 1 || !decimal(cl, 0x7fffffff, &length) || !length)
+        return error(c, 411, "A zip with its Content-Length is required\n");
+    if (length > DISC_APP_ZIP_MAX) return error(c, 413, "The archive is too large\n");
+    int refused = manager_mutation(c, s, "apps");
+    if (refused) return refused;
+    if (!s->webroot.root) return error(c, 409, "No apps folder is configured\n");
+    if (s->webroot.mount && !disc_webroot_available(&s->webroot)) return error(c, 503, "Card is not owned by the player\n");
+    pthread_mutex_lock(&s->lock);
+    int busy = s->apps_active;
+    if (!busy) s->apps_active = 1;
+    pthread_mutex_unlock(&s->lock);
+    if (busy) return error(c, 409, "Another app is being installed\n");
+    char folder[256], upload[300], problem[256] = "";
+    const char *slash = strrchr(s->webroot.root, '/');
+    int code = 0;
+    if (!slash || snprintf(folder, sizeof(folder), "%.*s/.disc", (int)(slash - s->webroot.root), s->webroot.root) >= (int)sizeof(folder) ||
+        snprintf(upload, sizeof(upload), "%s/app-upload.zip", folder) >= (int)sizeof(upload)) code = error(c, 500, "Path too long\n");
+    int fd = -1;
+    if (!code) {
+        (void)mkdir(folder, 0755);
+        (void)unlink(upload);
+        fd = open(upload, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0644);
+        if (fd < 0) code = error(c, 500, "The upload could not be stored\n");
+    }
+    if (!code) {
+        char buf[16384];
+        size_t used = 0;
+        while (used < length) {
+            int got = mg_read(c, buf, length - used < sizeof(buf) ? length - used : sizeof(buf));
+            if (got <= 0) break;
+            if (write(fd, buf, (size_t)got) != got) { used = 0; break; }
+            used += (size_t)got;
+        }
+        if (used != length || fsync(fd)) code = error(c, 400, "Incomplete upload\n");
+        close(fd);
+    }
+    disc_app_result result;
+    if (!code) {
+        int installed = disc_app_install_zip(s->webroot.root, upload, &result, problem, sizeof(problem));
+        if (installed != DISC_APP_OK) {
+            char text[300];
+            snprintf(text, sizeof(text), "%s\n", problem);
+            code = error(c, installed == DISC_APP_REFUSED ? 422 : installed == DISC_APP_NO_ROOM ? 507 : 500, text);
+        }
+    }
+    if (fd >= 0) (void)unlink(upload);
+    if (!code) {
+        disc_log("An app was installed through the manager\n");
+        disc_buffer b = {0};
+        disc_buffer_text(&b, "{\"name\":");
+        disc_buffer_string(&b, result.name, strlen(result.name));
+        disc_buffer_text(&b, ",\"version\":");
+        app_version(&s->webroot, result.name, &b);
+        disc_buffer_text(&b, ",\"files\":");
+        disc_buffer_int(&b, result.files);
+        disc_buffer_text(&b, ",\"bytes\":");
+        disc_buffer_int(&b, result.bytes);
+        disc_buffer_text(&b, "}");
+        code = b.overflow ? error(c, 500, "Answer too large\n") : response(c, 200, "application/json; charset=utf-8", b.data, b.used);
+        free(b.data);
+    }
+    pthread_mutex_lock(&s->lock); s->apps_active = 0; pthread_mutex_unlock(&s->lock);
+    return code;
+}
+/* DELETE /api/apps/<App>: removes an installed app; a removed chosen app is no longer chosen.
+ * CivetWeb hands over the path already URL-decoded (local_uri_raw). */
+static int app_remove_route(struct mg_connection *c, server *s, const char *name) {
+    const struct mg_request_info *r = mg_get_request_info(c);
+    const char *cl = mg_get_header(c, "Content-Length");
+    if (r->query_string || (cl && strcmp(cl, "0")) || mg_get_header(c, "Transfer-Encoding")) return error(c, 405, "A bodyless DELETE without a query\n");
+    int refused = manager_mutation(c, s, "apps");
+    if (refused) return refused;
+    if (!s->webroot.root || !disc_app_name_ok(name)) return error(c, 404, "No such app\n");
+    if (s->webroot.mount && !disc_webroot_available(&s->webroot)) return error(c, 503, "Card is not owned by the player\n");
+    pthread_mutex_lock(&s->lock);
+    int busy = s->apps_active;
+    if (!busy) s->apps_active = 1;
+    pthread_mutex_unlock(&s->lock);
+    if (busy) return error(c, 409, "Another app is being installed\n");
+    char problem[160] = "";
+    int removed = disc_app_remove(s->webroot.root, name, problem, sizeof(problem)), code = 0;
+    if (removed == DISC_APP_REFUSED) code = error(c, 404, "No such app\n");
+    else if (removed != DISC_APP_OK) code = error(c, 500, "The app could not be removed\n");
+    else {
+        pthread_mutex_lock(&s->lock);
+        if (s->settings_file && !strcmp(s->settings.default_app, name)) {
+            disc_settings next = s->settings;
+            next.default_app[0] = 0;
+            if (!disc_settings_write(s->settings_file, &next)) s->settings = next;
+        }
+        pthread_mutex_unlock(&s->lock);
+        disc_log("An app was removed through the manager\n");
+    }
+    pthread_mutex_lock(&s->lock); s->apps_active = 0; pthread_mutex_unlock(&s->lock);
+    return code ? code : apps_route(c, s);
+}
 static int manager_request(struct mg_connection *c, void *arg) {
     server *s = arg;
     request_origin[0] = 0;  /* the manager never answers a cross-origin page */
@@ -2255,7 +2366,9 @@ static int manager_request(struct mg_connection *c, void *arg) {
     const struct mg_request_info *request = mg_get_request_info(c);
     const char *uri = request->local_uri_raw, *method = request->request_method;
     if (!uri) return error(c, 404, "Not found\n");
-    if (!strcmp(uri, "/api/apps/default")) return strcmp(method, "PUT") ? error(c, 405, "PUT only\n") : default_app_route(c, s);
+    if (!strcmp(uri, "/api/apps/default") && strcmp(method, "DELETE")) return strcmp(method, "PUT") ? error(c, 405, "PUT only\n") : default_app_route(c, s);
+    if (!strcmp(uri, "/api/apps") && !strcmp(method, "POST")) return app_install_route(c, s);
+    if (!strncmp(uri, "/api/apps/", 10) && !strcmp(method, "DELETE")) return app_remove_route(c, s, uri + 10);
     int head = !strcmp(method, "HEAD");
     const char *cl = mg_get_header(c, "Content-Length");
     if ((!head && strcmp(method, "GET")) || (cl && strcmp(cl, "0")) || mg_get_header(c, "Transfer-Encoding") ||

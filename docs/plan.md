@@ -128,15 +128,39 @@ started as the package under `disc-boot`, the integration checks on it.
   across a restart, the strict file, a taken manager port), `test_webroot`,
   `test_service`, `test_openapi`, `test_package_build` (the package serves
   its manager under `disc-boot`).
+- [x] Step 2b, installing and removing apps (2026-10-02): `POST /api/apps`
+  takes a zip (at most 40 MiB) onto the card, `DELETE /api/apps/<App>`
+  removes an app, both on the manager's port with the serial number, a
+  request ID and pacing, one at a time. `device/src/apps.c` reads the zip's
+  central directory, applies `app_bundle.py`'s rules, inflates entry by entry
+  with miniz 3.0.2's `tinfl` (vendored, `device/vendor/miniz`) checking each
+  size and CRC-32, lints the unpacked files and swaps the folder in only when
+  complete; a refused or failed update keeps the installed app. The rules
+  were brought level both ways: the C lint follows the regex's backtracking
+  (`"/a.js/b"`) and its case (`/API/` is an asset), the twin rules are
+  `app_bundle.py`'s, and the packing tool now lints and pairs twins without
+  regard to case, as the FAT card names them. The trash refuses `Apps` and
+  what is in it. Evidence: `test_app_install` (each rule through
+  `build/host/app-install-tool`, with the packing tool's verdict and words on
+  the same zips; streamed and zip64-extra zips; swap and leftovers; removal;
+  also passed by the MIPS build under qemu-user on Linux, where the disk
+  tells case apart),
+  `test_gateway` (the routes, their authorization and framing, the chosen app
+  cleared on removal, one installation at a time, an aborted upload leaving
+  nothing, the trash, stock's folder creation and uploads refusing `Apps`),
+  `test_openapi`. The MIPS gateway is
+  4,954,148 bytes. Not covered synthetically: the room check (507), left to
+  the guest.
 - [ ] Guest acceptance of the package on the boot image, once the emulator
   boots it (snowsky-disc-boot, stage 2), then the two-package acceptance with
   diskOS's UI.
 
 ## Carried over
 
-- [ ] The trash refuses the card's `Apps` folder and what is in it, as it
+- [x] The trash refuses the card's `Apps` folder and what is in it, as it
   refuses `.disc` (snowsky-disc-player, 2026-10-02: the page keeps it out of
   the file manager, but any client of the trash route could move the apps).
+  Done in step 2b, with stock's folder creation and uploads below `Apps`.
 - [ ] Resource headroom: combined-009 runs eight HTTP workers and the soak's
   ceiling of 12 threads is reached; the owner expected twelve or sixteen
   workers. New bounds, shared threads where possible, and a measurement on

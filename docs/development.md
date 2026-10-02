@@ -21,7 +21,7 @@ for the apps and the card's catalog override.
 | Path | Purpose |
 | --- | --- |
 | `device/src/` | The gateway (`disc-service`) |
-| `device/vendor/` | Pinned CivetWeb, jsmn and SQLite sources with licenses |
+| `device/vendor/` | Pinned CivetWeb, jsmn, miniz and SQLite sources with licenses |
 | `apps/probe/` | Embedded RU/EN diagnostic browser page |
 | `firmware/` | Reviewed profiles and catalogs: commands, queries, store, hosted, origins, OS facts, card layout |
 | `scripts/` | Builds, the package (`build_package.py`), tests, catalog tools, card tools (`app_bundle.py`, `card_move.py`), emulator orchestration |
@@ -36,6 +36,19 @@ dependencies. Network tests bind only ephemeral loopback ports.
 
 ```sh
 bash scripts/test.sh
+```
+
+The host build also makes `build/host/app-install-tool`, which installs a zip
+or removes an app as the manager does, without HTTP
+(`app-install-tool install <Apps> <zip>` or `remove <Apps> <App>`);
+`test_app_install` checks every zip rule through it against
+`scripts/app_bundle.py`. `scripts/build.sh mips` builds a MIPS copy; with the
+emulator's CI image the same tests run it under qemu-user:
+
+```sh
+docker run --rm --network none --entrypoint sh -v "$PWD:/src:ro" \
+  -e DISC_APP_TOOL_COMMAND='["qemu-mipsel-static","/src/build/mips/app-install-tool"]' \
+  snowsky-disc-qemu-ci -c 'cd /src/tests/conformance && python3 -B -m unittest test_app_install'
 ```
 
 Host-only diagnostic launch (stock upstream must run on this host):
