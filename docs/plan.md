@@ -38,6 +38,35 @@ package: snowsky-disc-boot (`docs/contract.md`, `docs/plan.md`).
 
 ## Stage 1 — the gateway as the boot layer's `service` package
 
+Owner's decisions (2026-10-02):
+- **Tools and products.** qemu and boot are tools; server and player are
+  products. The boot image carries no web server and no page; the server
+  carries no copy of an app and no page of its own beyond the application
+  manager below.
+- **No card switch.** `.disc/disabled` goes with the combined images; Volume
+  Up at power-on or the default mode `stock` take its place.
+- **An application manager on its own port** (7871; the apps' port stays
+  7870), independent of the installed apps: the list of apps with their
+  versions, installing from a zip, removing, choosing the app served at `/`
+  (without a choice, the only one installed), the server's version and the
+  boot layer's state, and the server's updates. The apps' port answers `/`
+  with the chosen app, or redirects to the manager. Another origin (the
+  port), so no app can drive the manager or its API. `Apps/` changes only
+  through it. Later: updating apps.
+- **Ports from a settings file** with defaults 7870 and 7871: an optional
+  `.disc/server.env` on the card, `KEY=VALUE` with known keys only (`PORT`,
+  `MANAGER_PORT`), validated and never executed; `/api/about` shows the
+  ports in effect.
+
+Steps: (1) the gateway only as a package: no card switch, supervisor, image
+identity file, image copy of an app or embedded probe page; (2) the manager:
+second listener, app installation from a zip (server-side inflate, the
+`app_bundle.py` checks), removal, the default app, the redirect, `Apps/`
+kept from the trash, the settings file; (3) the server's updates in the
+manager: ed25519 signatures, the `.update` stream, the inactive slot,
+`activate` and `rollback`; (4) the server's own guest stack, the gateway
+started as the package under `disc-boot`, the integration checks on it.
+
 - [x] The package (2026-10-02): `scripts/build_package.py` lays out
   `bin/disc-service`, the reviewed catalogs in `catalog/` and `bin/run`, a
   shell entry that starts the gateway with the arguments the combined images'
@@ -49,7 +78,7 @@ package: snowsky-disc-boot (`docs/contract.md`, `docs/plan.md`).
   Boot supervises, so the package passes no `--supervise`, no identity file
   and no card switch: `.disc/disabled` would make the gateway exit, boot would
   count a failure and roll a new version back; Volume Up at power-on or the
-  default mode `stock` take its place (decision to confirm with the owner).
+  default mode `stock` take its place (owner, 2026-10-02: no switch).
   Evidence: `test_gateway` (the ready file follows the listener; `boot` in
   `/api/about`, null outside the boot layer or for a damaged file),
   `test_package_build` (the layout, the start script's options against the
@@ -66,9 +95,8 @@ package: snowsky-disc-boot (`docs/contract.md`, `docs/plan.md`).
   authorization (serial number, request ID, control owner); the page
   confirms an update by the new version after the restart, not by the
   transport's success.
-- [ ] The default app: the combined images carried Disc Player for a card
-  without one; the boot image carries no package, so decide whether the
-  service package carries it.
+- [x] The default app (owner, 2026-10-02): no copy of an app in the package;
+  apps live on the card and the manager installs them.
 - [ ] Guest acceptance of the package on the boot image, once the emulator
   boots it (snowsky-disc-boot, stage 2), then the two-package acceptance with
   diskOS's UI.
