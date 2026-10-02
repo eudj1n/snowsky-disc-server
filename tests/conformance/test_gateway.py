@@ -7,6 +7,7 @@ import json
 from contextlib import closing
 from pathlib import Path
 import os
+import re
 import socket
 import struct
 from urllib.parse import quote
@@ -1617,6 +1618,18 @@ class GatewayTests(unittest.TestCase):
         self.assertNotIn('access-control-allow-origin', self.manager('GET', '/api/about', {'Origin': f'http://{self.manager_authority}'})[2])
         # The manager's page is not an app: the apps' port does not serve it.
         self.assertEqual(self.http('GET', '/manager.js')[0], 404)
+
+    def test_the_managers_page_follows_the_apps_policy(self):
+        # Served under the strictest policy, the page keeps the rules every app follows,
+        # and every element its script looks up is on the page.
+        folder = ROOT/'device'/'manager'
+        for path in sorted(folder.iterdir()):
+            with self.subTest(path=path.name):
+                bundle.check_csp(path.name, path.read_bytes())
+        page = (folder/'index.html').read_text()
+        for name in sorted(set(re.findall(r"\$\('([\w-]+)'\)", (folder/'manager.js').read_text()))):
+            with self.subTest(element=name):
+                self.assertIn(f'id="{name}"', page)
 
     def test_slash_serves_the_chosen_or_the_only_app_else_the_manager(self):
         settings = self.root/'server.env'

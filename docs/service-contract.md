@@ -45,6 +45,19 @@ installed, else the only app installed; with none, or several and no choice,
 it redirects (302) to the manager on the same host. `PUT /api/apps/default`
 (the manager's port) chooses or clears the app.
 
+The manager's page (`device/manager/`, embedded in the gateway) lists the
+apps with their versions and links, marks the one that opens at the
+player's address and changes that choice, installs a zip with the upload's
+progress shown, then "Checking and unpacking", and removes an app after a
+question in its row. It shows the server's version and build, the boot
+layer's decision and package, the ports and whether the card is in the
+player. Each change takes the serial number from the page's field (kept in
+the browser only when "Remember" is ticked); one change runs at a time and
+the others wait, disabled. The answer of a change appears in its own
+section; a connection lost during a change is reported as such and the list
+is read again rather than taken for success or failure. English or Russian,
+after the browser's language.
+
 The manager installs and removes apps (the manager's port only, each with
 the serial number, a fresh request ID and pacing; one at a time, 409
 otherwise):

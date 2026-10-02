@@ -151,6 +151,22 @@ started as the package under `disc-boot`, the integration checks on it.
   `test_openapi`. The MIPS gateway is
   4,954,148 bytes. Not covered synthetically: the room check (507), left to
   the guest.
+- [x] Step 2c, the manager's page (2026-10-02): the list with versions,
+  links and the default choice (a choice already in effect stays in place,
+  disabled), installation from a zip with the upload's progress and the
+  server's checking phase, removal after a question in the row, the server,
+  boot, ports and card facts, English and Russian. Answers appear in the
+  section that asked; one change at a time; a lost connection reloads the
+  list instead of guessing the outcome. Evidence: `test_gateway` (the page
+  keeps the apps' policy, every element its script uses exists), and a
+  real-browser run (Chromium through Playwright, desktop light in English,
+  phone dark in Russian) against the host gateway: installing without the
+  serial number asks for it; a 1.5 MB zip over a throttled link shows its
+  progress with the other changes disabled, then "Radio 1.0.0 is
+  installed: 5 files, 1.5 MB"; choosing, removing after the question, a
+  refused zip with the rule's words, a wrong serial number; no horizontal
+  scrolling at 390 px. The MIPS gateway is 4,963,140 bytes. The guest check
+  comes with step 4.
 - [ ] Guest acceptance of the package on the boot image, once the emulator
   boots it (snowsky-disc-boot, stage 2), then the two-package acceptance with
   diskOS's UI.
