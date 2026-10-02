@@ -8,7 +8,9 @@ with every change confirmed by the player itself.
 
 Apps — Disc Player or any other web app — live on the card. The server's own
 page, the application manager, installs an app from a zip, removes apps and
-chooses the one that opens at the player's address.
+chooses the one that opens at the player's address. It also updates the
+server itself from a signed release file, and returns to the previous
+version if needed; the music keeps playing meanwhile.
 
 **Status: in development.** It will be installed as a package of the DISC boot
 layer; there is nothing to install yet.

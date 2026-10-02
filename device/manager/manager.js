@@ -16,10 +16,24 @@ const TEXT = {
     noRoom: 'The card does not have room for the app and the play history. Nothing was installed.',
     lost: 'The connection was lost. The list shows what the player has now.',
     needSerial: 'Enter the serial number first.', wrongSerial: 'The serial number was not accepted. After several wrong tries the player waits a while.',
-    busy: 'Another installation is running.', noCard: 'The card is not available in the player.',
+    busy: 'Another change is running.', noCard: 'The card is not available in the player.',
     saved: 'Saved.', failed: 'Not done: {why}', unreachable: 'The server does not answer.',
     server: 'Server', boot: 'Boot layer', package: 'Package', ports: 'Ports', card: 'Card', cardIn: 'in the player', cardOut: 'not available',
     portsValue: 'apps {apps}, manager {manager}', notBoot: 'not under the boot layer', confirmed: 'confirmed', tentative: 'not confirmed yet',
+    updateTitle: 'Server updates',
+    updateHelp: 'A server release as a .update file. It is checked as it arrives and kept beside the running version; switching is a separate step that restarts the server, not the music. Uploading replaces the version kept for a return.',
+    upload: 'Upload', checking: 'Checking the signature and the files…',
+    runningConfirmed: 'Version {version} runs, confirmed.', runningTentative: 'Version {version} runs; it is confirmed after three minutes of steady work.',
+    waitConfirmed: 'An update waits until the running version is confirmed.',
+    notUnderBoot: 'This server does not run under the boot layer: it takes no updates here.', noKeys: 'This build takes no updates over the network.',
+    activate: 'Restart into {version}', activateNone: 'Restart into an uploaded version', rollback: 'Return to {version}', rollbackNone: 'Return to the previous version',
+    staged: '{version} is ready: {files} files, {size}. Restart into it when convenient.',
+    askActivate: 'Restart the server into {version}? The music does not stop; this page reconnects.',
+    askRollback: 'Return the server to {version}? The music does not stop; this page reconnects.',
+    confirm: 'Restart', restarting: 'Restarting into {version}…', switched: 'Switched to {version}.',
+    confirmedNow: '{version} runs, confirmed.', returned: '{version} did not take over; {running} runs. The boot layer says: {why}',
+    noAnswer: 'The server does not answer. A version that fails gives way to the previous one by itself; reload this page in a minute.',
+    updateRefused: 'The update was refused: {why}', updateNoRoom: 'The player does not have room for the update. Nothing was changed.',
   },
   ru: {
     title: 'Приложения', apps: 'Установленные приложения', serialTitle: 'Серийный номер',
@@ -36,10 +50,24 @@ const TEXT = {
     noRoom: 'На карте не хватает места для приложения и истории прослушиваний. Ничего не установлено.',
     lost: 'Соединение прервалось. Список показывает, что сейчас есть на плеере.',
     needSerial: 'Сначала введите серийный номер.', wrongSerial: 'Серийный номер не принят. После нескольких ошибок плеер какое-то время не принимает попытки.',
-    busy: 'Уже идёт другая установка.', noCard: 'Карта недоступна в плеере.',
+    busy: 'Уже идёт другое изменение.', noCard: 'Карта недоступна в плеере.',
     saved: 'Сохранено.', failed: 'Не выполнено: {why}', unreachable: 'Сервер не отвечает.',
     server: 'Сервер', boot: 'Слой загрузки', package: 'Пакет', ports: 'Порты', card: 'Карта', cardIn: 'в плеере', cardOut: 'недоступна',
     portsValue: 'приложения {apps}, менеджер {manager}', notBoot: 'не под слоем загрузки', confirmed: 'подтверждён', tentative: 'ещё не подтверждён',
+    updateTitle: 'Обновления сервера',
+    updateHelp: 'Выпуск сервера в виде файла .update. Он проверяется по мере загрузки и хранится рядом с работающей версией; переключение — отдельный шаг, который перезапускает сервер, но не музыку. Загрузка заменяет версию, сохранённую для возврата.',
+    upload: 'Загрузить', checking: 'Проверка подписи и файлов…',
+    runningConfirmed: 'Работает версия {version}, подтверждена.', runningTentative: 'Работает версия {version}; она подтверждается после трёх минут стабильной работы.',
+    waitConfirmed: 'Обновление ждёт, пока работающая версия не будет подтверждена.',
+    notUnderBoot: 'Сервер работает не под слоем загрузки: обновления здесь не принимаются.', noKeys: 'Эта сборка не принимает обновления по сети.',
+    activate: 'Перезапустить в {version}', activateNone: 'Перезапустить в загруженную версию', rollback: 'Вернуться к {version}', rollbackNone: 'Вернуться к предыдущей версии',
+    staged: '{version} готова: файлов {files}, {size}. Перезапустите в неё, когда удобно.',
+    askActivate: 'Перезапустить сервер в {version}? Музыка не прервётся; страница переподключится.',
+    askRollback: 'Вернуть сервер к {version}? Музыка не прервётся; страница переподключится.',
+    confirm: 'Перезапустить', restarting: 'Перезапуск в {version}…', switched: 'Переключено на {version}.',
+    confirmedNow: 'Работает {version}, подтверждена.', returned: '{version} не заработала; работает {running}. Слой загрузки сообщает: {why}',
+    noAnswer: 'Сервер не отвечает. Неудачная версия сама уступает место предыдущей; обновите страницу через минуту.',
+    updateRefused: 'Обновление не принято: {why}', updateNoRoom: 'На плеере не хватает места для обновления. Ничего не изменено.',
   },
 }
 const ru = (navigator.language || '').toLowerCase().startsWith('ru')
@@ -85,6 +113,7 @@ const setBusy = (value) => {
   for (const element of document.querySelectorAll('[data-change]')) element.disabled = busy
   $('archive').disabled = busy
   $('install').disabled = busy || !$('archive').files.length
+  renderUpdate()
 }
 
 const requestId = () => {
@@ -98,13 +127,17 @@ const serial = (where) => {
   return value
 }
 // The page's words for what the server answered; its own text where it names a rule.
-function failure(code, text) {
+const KNOWN = {
+  'Another change is running': 'busy', 'This server does not run under the boot layer': 'notUnderBoot',
+  'This build carries no update keys': 'noKeys', 'The running version is not confirmed yet; an update waits for it': 'waitConfirmed',
+}
+function failure(code, text, kind = 'app') {
   if (code === 403) return t('wrongSerial')
-  if (code === 409) return t('busy')
-  if (code === 413) return t('tooLarge')
-  if (code === 422) return t('refused', { why: text })
+  if (KNOWN[text]) return t(KNOWN[text])
+  if (code === 413 && kind === 'app') return t('tooLarge')
+  if (code === 422) return t(kind === 'app' ? 'refused' : 'updateRefused', { why: text })
   if (code === 503) return t('noCard')
-  if (code === 507) return t('noRoom')
+  if (code === 507) return t(kind === 'app' ? 'noRoom' : 'updateNoRoom')
   return t('failed', { why: text || code })
 }
 async function get(path) {
@@ -112,9 +145,9 @@ async function get(path) {
   if (!response.ok) throw new Error(`${response.status}`)
   return response.json()
 }
-async function change(method, path, body) {
-  say('')
-  const token = serial()
+async function change(method, path, body, where = 'apps-status') {
+  say('', false, where)
+  const token = serial(where)
   if (!token) return null
   setBusy(true)
   try {
@@ -123,10 +156,10 @@ async function change(method, path, body) {
       headers: { 'Content-Type': 'application/json', 'X-Disc-Token': token, 'X-Disc-Request': requestId() },
       body: body === undefined ? undefined : JSON.stringify(body),
     })
-    if (!response.ok) { say(failure(response.status, (await response.text()).trim()), true); return null }
+    if (!response.ok) { say(failure(response.status, (await response.text()).trim(), where === 'update-status' ? 'update' : 'app'), true, where); return null }
     return await response.json()
   } catch {
-    say(t('lost'), true)
+    say(t('lost'), true, where)
     await load()
     return null
   } finally { setBusy(false) }
@@ -209,8 +242,37 @@ async function choose(name) {
   if (apps) { renderApps(apps); say(t('saved')) }
 }
 
-// Installing: the zip goes up with its progress shown, then the server checks and unpacks it.
-// A lost connection is not taken for a failure or a success: the list is read again.
+// A file goes up with its progress shown, then the server checks it; a lost connection is not taken
+// for a failure or a success: what the player has is read again.
+function send({ path, file, type, token, row, bar, text, checking, where, kind, done }) {
+  setBusy(true); say('', false, where)
+  row.hidden = false; bar.value = 0
+  text.textContent = t('uploading', { done: size(0), total: size(file.size) })
+  const xhr = new XMLHttpRequest()
+  xhr.open('POST', path)
+  xhr.setRequestHeader('Content-Type', type)
+  xhr.setRequestHeader('X-Disc-Token', token)
+  xhr.setRequestHeader('X-Disc-Request', requestId())
+  xhr.upload.addEventListener('progress', (progress) => {
+    bar.value = progress.lengthComputable ? progress.loaded / progress.total : 0
+    text.textContent = t('uploading', { done: size(progress.loaded), total: size(file.size) })
+  })
+  xhr.upload.addEventListener('load', () => { bar.removeAttribute('value'); text.textContent = checking })
+  const finish = async (message, bad) => {
+    row.hidden = true
+    setBusy(false)
+    await load()
+    say(message, bad, where)
+  }
+  xhr.addEventListener('load', () => {
+    if (xhr.status === 200) finish(done(JSON.parse(xhr.responseText)))
+    else finish(failure(xhr.status, xhr.responseText.trim(), kind), true)
+  })
+  xhr.addEventListener('error', () => finish(t('lost'), true))
+  xhr.addEventListener('abort', () => finish(t('lost'), true))
+  xhr.send(file)
+}
+
 $('archive').addEventListener('change', () => { setBusy(busy); say('', false, 'install-status') })
 $('install-form').addEventListener('submit', (event) => {
   event.preventDefault()
@@ -218,44 +280,102 @@ $('install-form').addEventListener('submit', (event) => {
   const token = file && serial('install-status')
   if (!token || busy) return
   if (file.size > 40 * 1024 * 1024) { say(t('tooLarge'), true, 'install-status'); return }
-  setBusy(true); say('', false, 'install-status')
-  const row = $('progress-row'), bar = $('progress'), text = $('progress-text')
-  row.hidden = false; bar.value = 0
-  text.textContent = t('uploading', { done: size(0), total: size(file.size) })
-  const xhr = new XMLHttpRequest()
-  xhr.open('POST', '/api/apps')
-  xhr.setRequestHeader('Content-Type', 'application/zip')
-  xhr.setRequestHeader('X-Disc-Token', token)
-  xhr.setRequestHeader('X-Disc-Request', requestId())
-  xhr.upload.addEventListener('progress', (progress) => {
-    bar.value = progress.lengthComputable ? progress.loaded / progress.total : 0
-    text.textContent = t('uploading', { done: size(progress.loaded), total: size(file.size) })
-  })
-  xhr.upload.addEventListener('load', () => { bar.removeAttribute('value'); text.textContent = t('unpacking') })
-  const finish = async (message, bad) => {
-    row.hidden = true
-    setBusy(false)
-    await load()
-    say(message, bad, 'install-status')
-  }
-  xhr.addEventListener('load', () => {
-    if (xhr.status === 200) {
-      const result = JSON.parse(xhr.responseText)
+  send({
+    path: '/api/apps', file, type: 'application/zip', token, where: 'install-status', kind: 'app',
+    row: $('progress-row'), bar: $('progress'), text: $('progress-text'), checking: t('unpacking'),
+    done: (result) => {
       $('install-form').reset()
       const app = result.version ? `${result.name} ${result.version}` : result.name
-      finish(t('installed', { app, files: result.files, size: size(result.bytes) }))
-    } else finish(failure(xhr.status, xhr.responseText.trim()), true)
+      return t('installed', { app, files: result.files, size: size(result.bytes) })
+    },
   })
-  xhr.addEventListener('error', () => finish(t('lost'), true))
-  xhr.addEventListener('abort', () => finish(t('lost'), true))
-  xhr.send(file)
 })
+
+// The server's updates: upload, then a restart into the new version or back to the previous one.
+let update = null
+function renderUpdate() {
+  if (!update) return
+  const running = update.running
+  const note = !update.available ? (update.why?.includes('boot layer') ? t('notUnderBoot') : t('noKeys'))
+    : !running ? '' : running.confirmed ? t('runningConfirmed', { version: running.version })
+    : `${t('runningTentative', { version: running.version })} ${t('waitConfirmed')}`
+  $('update-note').textContent = note
+  const canUpload = update.available && running?.confirmed
+  $('update-file').disabled = busy || !canUpload
+  $('update-send').disabled = busy || !canUpload || !$('update-file').files.length
+  const activate = $('update-activate'), rollback = $('update-rollback')
+  if (!activate.isConnected) return  // a question is open in their place
+  activate.textContent = update.staged ? t('activate', { version: update.staged.version }) : t('activateNone')
+  activate.disabled = busy || !update.staged
+  rollback.textContent = update.previous ? t('rollback', { version: update.previous.version }) : t('rollbackNone')
+  rollback.disabled = busy || !update.previous
+}
+$('update-file').addEventListener('change', () => { renderUpdate(); say('', false, 'update-status') })
+$('update-form').addEventListener('submit', (event) => {
+  event.preventDefault()
+  const file = $('update-file').files[0]
+  const token = file && serial('update-status')
+  if (!token || busy) return
+  send({
+    path: '/api/update', file, type: 'application/octet-stream', token, where: 'update-status', kind: 'update',
+    row: $('update-progress-row'), bar: $('update-progress'), text: $('update-progress-text'), checking: t('checking'),
+    done: (result) => {
+      $('update-form').reset()
+      return t('staged', { version: result.version, files: result.files, size: size(result.bytes) })
+    },
+  })
+})
+// Switching asks once, in place of the two buttons.
+function askSwitch(action, version) {
+  const buttons = $('update-switches')
+  const kept = [...buttons.childNodes]
+  const text = document.createElement('span')
+  text.textContent = t(action === 'activate' ? 'askActivate' : 'askRollback', { version })
+  const back = () => { buttons.replaceChildren(...kept); renderUpdate() }
+  const no = button(t('cancel'), back)
+  buttons.replaceChildren(text, button(t('confirm'), async () => { back(); await switchTo(action, version) }, 'danger'), no)
+  no.focus()
+}
+$('update-activate').addEventListener('click', () => askSwitch('activate', update.staged.version))
+$('update-rollback').addEventListener('click', () => askSwitch('rollback', update.previous.version))
+const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+// The outcome is the version that answers after the restart, not the request's success: the old
+// server may answer a moment longer, so only the boot layer's new answer counts.
+async function switchTo(action, version) {
+  const before = update.lastRequest
+  const answer = await change('POST', `/api/update/${action}`, undefined, 'update-status')
+  if (!answer) return
+  setBusy(true)
+  say(t('restarting', { version }), false, 'update-status')
+  let seen = null
+  for (const until = Date.now() + 3 * 60 * 1000; Date.now() < until; await pause(1500)) {
+    try {
+      const now = await get('/api/update')
+      if (now.running?.version === version || now.lastRequest !== before) { seen = now; break }
+    } catch { /* restarting */ }
+  }
+  setBusy(false)
+  if (!seen) { say(t('noAnswer'), true, 'update-status'); return }
+  update = seen
+  await load()
+  for (const until = Date.now() + 5 * 60 * 1000; ; await pause(5000)) {
+    const running = update.running
+    if (running?.version !== version) {
+      say(t('returned', { version, running: running?.version ?? '—', why: update.lastRequest ?? '—' }), true, 'update-status')
+      return
+    }
+    if (running.confirmed) { say(t('confirmedNow', { version }), false, 'update-status'); return }
+    say(t('switched', { version }), false, 'update-status')
+    if (Date.now() > until) return
+    try { update = await get('/api/update'); renderUpdate() } catch { /* restarting again */ }
+  }
+}
 
 async function load() {
   try {
-    const [nextAbout, apps] = await Promise.all([get('/api/about'), get('/api/apps')])
-    about = nextAbout
-    renderFacts(); renderApps(apps)
+    const [nextAbout, apps, nextUpdate] = await Promise.all([get('/api/about'), get('/api/apps'), get('/api/update')])
+    about = nextAbout; update = nextUpdate
+    renderFacts(); renderApps(apps); renderUpdate()
   } catch { say(t('unreachable'), true) }
 }
 load()

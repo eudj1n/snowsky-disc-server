@@ -21,7 +21,7 @@ endif
 all: $(OUT)/disc-service
 $(OUT):
 	mkdir -p $@
-$(OUT)/main.o: src/main.c src/settings.h src/apps.h $(OUT)/manager_assets.h src/framing.h src/webroot.h src/catalog.h src/data.h src/media.h src/facts.h src/history.h src/database.h src/store.h src/trash.h src/lists.h src/tree.h src/origins.h src/log.h src/jsonutil.h vendor/civetweb/include/civetweb.h | $(OUT)
+$(OUT)/main.o: src/main.c src/settings.h src/apps.h src/update.h $(OUT)/manager_assets.h src/framing.h src/webroot.h src/catalog.h src/data.h src/media.h src/facts.h src/history.h src/database.h src/store.h src/trash.h src/lists.h src/tree.h src/origins.h src/log.h src/jsonutil.h vendor/civetweb/include/civetweb.h | $(OUT)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
 $(OUT)/catalog.o: src/catalog.c src/catalog.h src/jsonutil.h vendor/jsmn/jsmn.h | $(OUT)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
@@ -53,6 +53,14 @@ $(OUT)/lists.o: src/lists.c src/lists.h src/media.h src/jsonutil.h src/framing.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
 $(OUT)/store.o: src/store.c src/store.h src/database.h src/jsonutil.h src/framing.h vendor/sqlite/sqlite3.h vendor/civetweb/include/civetweb.h | $(OUT)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
+$(OUT)/update.o: src/update.c src/update.h src/sha256.h src/jsonutil.h vendor/monocypher/monocypher-ed25519.h | $(OUT)
+	$(CC) $(CPPFLAGS) -Ivendor/monocypher $(CFLAGS) -c $< -o $@
+$(OUT)/sha256.o: src/sha256.c src/sha256.h | $(OUT)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
+$(OUT)/monocypher.o: vendor/monocypher/monocypher.c vendor/monocypher/monocypher.h | $(OUT)
+	$(CC) $(CPPFLAGS) -Ivendor/monocypher $(CFLAGS) -c $< -o $@
+$(OUT)/monocypher-ed25519.o: vendor/monocypher/monocypher-ed25519.c vendor/monocypher/monocypher-ed25519.h vendor/monocypher/monocypher.h | $(OUT)
+	$(CC) $(CPPFLAGS) -Ivendor/monocypher $(CFLAGS) -c $< -o $@
 $(OUT)/apps.o: src/apps.c src/apps.h src/webroot.h vendor/miniz/miniz.h | $(OUT)
 	$(CC) $(CPPFLAGS) -Ivendor/miniz $(CFLAGS) -c $< -o $@
 $(OUT)/miniz.o: vendor/miniz/miniz.c vendor/miniz/miniz.h | $(OUT)
@@ -63,11 +71,16 @@ $(OUT)/framing.o: src/framing.c src/framing.h | $(OUT)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
 $(OUT)/civetweb.o: vendor/civetweb/src/civetweb.c $(wildcard vendor/civetweb/src/*.inl) vendor/civetweb/include/civetweb.h | $(OUT)
 	$(CC) $(CPPFLAGS) $(filter-out -Werror,$(CFLAGS)) -c $< -o $@
-$(OUT)/disc-service: $(OUT)/main.o $(OUT)/settings.o $(OUT)/apps.o $(OUT)/miniz.o $(OUT)/framing.o $(OUT)/webroot.o $(OUT)/media.o $(OUT)/facts.o $(OUT)/history.o $(OUT)/database.o $(OUT)/store.o $(OUT)/trash.o $(OUT)/lists.o $(OUT)/tree.o $(OUT)/origins.o $(OUT)/log.o $(OUT)/catalog.o $(OUT)/jsonutil.o $(OUT)/data.o $(OUT)/sqlite3.o $(OUT)/civetweb.o
+$(OUT)/disc-service: $(OUT)/main.o $(OUT)/settings.o $(OUT)/apps.o $(OUT)/miniz.o $(OUT)/update.o $(OUT)/sha256.o $(OUT)/monocypher.o $(OUT)/monocypher-ed25519.o $(OUT)/framing.o $(OUT)/webroot.o $(OUT)/media.o $(OUT)/facts.o $(OUT)/history.o $(OUT)/database.o $(OUT)/store.o $(OUT)/trash.o $(OUT)/lists.o $(OUT)/tree.o $(OUT)/origins.o $(OUT)/log.o $(OUT)/catalog.o $(OUT)/jsonutil.o $(OUT)/data.o $(OUT)/sqlite3.o $(OUT)/civetweb.o
 	$(CC) $(LDFLAGS) $^ $(LDLIBS) -o $@
 $(OUT)/framing-test: tests/framing_test.c src/framing.c src/framing.h | $(OUT)
 	$(CC) $(CPPFLAGS) $(CFLAGS) tests/framing_test.c src/framing.c $(LDFLAGS) -o $@
 $(OUT)/app-install-tool: tests/app_install_tool.c $(OUT)/apps.o $(OUT)/miniz.o $(OUT)/webroot.o $(OUT)/framing.o | $(OUT)
 	$(CC) $(CPPFLAGS) $(CFLAGS) tests/app_install_tool.c $(OUT)/apps.o $(OUT)/miniz.o $(OUT)/webroot.o $(OUT)/framing.o $(LDFLAGS) $(LDLIBS) -o $@
-test: $(OUT)/framing-test $(OUT)/app-install-tool
+$(OUT)/sha256-test: tests/sha256_test.c src/sha256.c src/sha256.h | $(OUT)
+	$(CC) $(CPPFLAGS) $(CFLAGS) tests/sha256_test.c src/sha256.c $(LDFLAGS) -o $@
+$(OUT)/update-tool: tests/update_tool.c $(OUT)/update.o $(OUT)/sha256.o $(OUT)/monocypher.o $(OUT)/monocypher-ed25519.o $(OUT)/jsonutil.o $(OUT)/framing.o | $(OUT)
+	$(CC) $(CPPFLAGS) $(CFLAGS) tests/update_tool.c $(OUT)/update.o $(OUT)/sha256.o $(OUT)/monocypher.o $(OUT)/monocypher-ed25519.o $(OUT)/jsonutil.o $(OUT)/framing.o $(LDFLAGS) $(LDLIBS) -o $@
+test: $(OUT)/framing-test $(OUT)/app-install-tool $(OUT)/sha256-test $(OUT)/update-tool
 	$(OUT)/framing-test
+	$(OUT)/sha256-test

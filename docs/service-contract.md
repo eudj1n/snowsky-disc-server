@@ -97,6 +97,48 @@ unless given. The file lives in the package's own data, not on the card,
 because the card is mounted after the service starts on the player.
 `/api/about` names the ports in effect (`ports: {apps, manager}`).
 
+## The server's updates
+
+The manager also updates the server itself (owner, 2026-10-02; the manager's
+port only). A release is the boot layer's package and, for this path, one
+`.update` stream (`scripts/update_file.py`): `DISCUPD1`, an Ed25519
+signature over `package.json`, its length (u32, little-endian, at most
+64 KiB), `package.json` itself, then every listed file's bytes in the
+manifest's order. `package.json` lists each file's size, SHA-256 and mode,
+so the signature covers the whole package. The gateway trusts the public
+keys its own package carries (`keys/update-keys`, `--update-keys`); a
+package built without keys takes no updates over the network, and neither
+does a gateway outside the boot layer.
+
+- `GET /api/update` → `{"available", "why", "running": {name, version,
+  state, confirmed} | null, "previous": {name, version} | null, "staged":
+  {name, version} | null, "lastRequest"}`. `previous` is the version a
+  rollback returns to, while the inactive slot still holds it (boot's
+  fingerprint of its `package.json` matches); `staged` is an update there.
+- `POST /api/update` with the stream as the body (`Content-Length`, at most
+  32 MiB and 64 KiB beyond the header) needs the serial number, a request
+  ID, pacing and a confirmed running version (409 otherwise), one change at
+  a time. The signature is checked before anything is written; then the
+  name (only the running package's own), the role, every path (boot's
+  rule), size, SHA-256 and mode, and the length. The files go into
+  `$DISC_BOOT_DATA/update` (`--update-work`) with their hashes taken as
+  they arrive, boot's `verify` checks that folder (`--boot-program`,
+  `$DISC_BOOT_PROGRAM`), and only then it takes the inactive slot's place
+  (`--update-slot`) by one rename. So a refused, short or failed upload
+  leaves the slot, and the version kept for a rollback, as it was; a
+  complete one replaces that version. Answers `{name, version, files,
+  bytes}`; 422 with the first refusal, 507 without room for both versions
+  and stock's 16 MiB, 400 for a short upload.
+- `POST /api/update/activate` (a staged update, which boot's `verify`
+  checks again) and `POST /api/update/rollback` (a previous version): the
+  serial number and a request ID; the gateway writes the boot layer's
+  request (`--update-request`), answers 202 `{"restarting": true,
+  "version"}` and exits, so boot applies it. A transport success is no
+  confirmation: the page waits for the boot layer's new answer, then for
+  the new version's confirmation, and says when boot kept or restored
+  another one (`lastRequest`). Restarting the server does not stop stock's
+  playback.
+
 ## Diagnostics
 
 `GET /api/about` (combined-008; bodyless, no query, no credential) answers

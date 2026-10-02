@@ -33,6 +33,24 @@
     </div>
     <p class="status" id="install-status" role="status" aria-live="polite"></p>
   </section>
+  <section aria-labelledby="update-title">
+    <h2 id="update-title" data-text="updateTitle">Server updates</h2>
+    <p class="muted" id="update-note"></p>
+    <p class="muted" data-text="updateHelp">A server release as a .update file. It is checked as it arrives and kept beside the running version; switching is a separate step that restarts the server, not the music. Uploading replaces the version kept for a return.</p>
+    <form id="update-form">
+      <input type="file" id="update-file" accept=".update" aria-labelledby="update-title">
+      <button type="submit" id="update-send" disabled data-text="upload">Upload</button>
+    </form>
+    <div class="progress" id="update-progress-row" hidden>
+      <progress id="update-progress" max="1" value="0"></progress>
+      <span id="update-progress-text"></span>
+    </div>
+    <div class="switches" id="update-switches">
+      <button type="button" id="update-activate" disabled></button>
+      <button type="button" id="update-rollback" class="quiet" disabled></button>
+    </div>
+    <p class="status" id="update-status" role="status" aria-live="polite"></p>
+  </section>
   <section aria-labelledby="serial-title">
     <h2 id="serial-title" data-text="serialTitle">Serial number</h2>
     <p class="muted" data-text="serialHelp">Changes need the player's serial number (Settings → About on the player).</p>

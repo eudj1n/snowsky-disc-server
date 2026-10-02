@@ -56,6 +56,7 @@ class PackageBuildTests(unittest.TestCase):
         self.addCleanup(temp.cleanup)
         self.root = Path(temp.name).resolve()
         self.builder = load('server_package_builder', ROOT/'scripts/build_package.py')
+        self.update_file = load('server_update_file', ROOT/'scripts/update_file.py')
         self.package = load('boot_package_tool', BOOT/'scripts/package.py')
 
     def options(self, script):
@@ -76,7 +77,8 @@ class PackageBuildTests(unittest.TestCase):
         self.assertTrue(script.startswith('#!/bin/sh\n'))
         self.assertIn('exec "$DISC_BOOT_SLOT/bin/disc-service"', script)
         options = self.options(script)
-        self.assertEqual(options, ['--listen', '--upstream', '--settings', '--ready-file', '--boot-status', '--apps', '--sd-mount',
+        self.assertEqual(options, ['--listen', '--upstream', '--settings', '--ready-file', '--boot-status', '--update-slot',
+                                   '--update-work', '--update-request', '--boot-program', '--apps', '--sd-mount',
                                    '--sd-source', '--commands-profile-sha256', '--catalog', '--card-catalog', '--data-root',
                                    '--current-lyrics', '--serial-file', '--battery-dir', '--asound-dir', '--player-process',
                                    '--mdns-name', '--database', '--trash', '--internal-lists', '--external-lists'])
@@ -88,6 +90,25 @@ class PackageBuildTests(unittest.TestCase):
         self.assertNotIn('--port', script, 'the ports come from the settings file')
         self.assertIn('"--database" "$DISC_BOOT_CARD/.disc/disc.db"', script)
         self.assertEqual(subprocess.run(['sh', '-n', str(folder/'bin/run')]).returncode, 0)
+        self.assertIn('"--update-slot" "$DISC_BOOT_INACTIVE"', script)
+        self.assertIn('"--boot-program" "$DISC_BOOT_PROGRAM"', script)
+        self.assertNotIn('--update-keys', script, 'a package without keys takes no updates over the network')
+        self.assertIsNone(result['update'])
+
+    def test_a_package_with_update_keys_carries_them_and_is_signed(self):
+        key = self.root/'update.key'
+        public = self.update_file.keygen(key)
+        keys = self.root/'update-keys'
+        keys.write_text(public + '\n')
+        result = self.builder.build(soft_float_elf(self.root/'disc-service'), self.root/'out', version='2', update_keys=keys, sign_key=key)
+        folder = Path(result['folder'])
+        self.assertEqual((folder/'keys/update-keys').read_text(), public + '\n')
+        self.assertIn('keys/update-keys', json.loads((folder/'package.json').read_text())['files'])
+        self.assertIn('"--update-keys" "$DISC_BOOT_SLOT/keys/update-keys"', (folder/'bin/run').read_text())
+        self.assertEqual(self.update_file.inspect(result['update'], keys)['signedBy'], public)
+        keys.write_text('not a key\n')
+        with self.assertRaisesRegex(ValueError, 'not a public key'):
+            self.builder.build(soft_float_elf(self.root/'disc-service'), self.root/'again', version='3', update_keys=keys)
 
     def test_the_engineering_variant_adds_the_cards_commands_and_raw_mode(self):
         result = self.builder.build(soft_float_elf(self.root/'disc-service'), self.root/'out', version='1', engineering=True)
@@ -139,6 +160,75 @@ class PackageBuildTests(unittest.TestCase):
             manager = http.client.HTTPConnection('127.0.0.1', manager_port, timeout=5)
             manager.request('GET', '/', headers={'Host': f'127.0.0.1:{manager_port}'})
             self.assertEqual(manager.getresponse().status, 200, 'the package serves its manager')
+        finally:
+            boot('stop')
+            subprocess.run(['pkill', '-f', str(player)], capture_output=True)
+
+    @unittest.skipUnless(BOOT_FIXTURE.is_file() and SERVICE.is_file(), 'needs both host builds (scripts/test.sh in each repository)')
+    def test_the_manager_updates_the_server_and_rolls_it_back_under_disc_boot(self):
+        port, manager_port = free_port(), free_port()
+        key, keys, serial = self.root/'update.key', self.root/'update-keys', self.root/'sn.txt'
+        keys.write_text(self.update_file.keygen(key) + '\n')
+        serial.write_text('20260926000042\n')  # synthetic
+        common = dict(arch='fixture', port=port, manager_port=manager_port, update_keys=keys, serial_file=str(serial))
+        first = self.builder.build(SERVICE, self.root/'v1', version='1', **common)
+        second = self.builder.build(SERVICE, self.root/'v2', version='2', sign_key=key, **common)
+        player = self.root/'player'
+        for name in ('run', 'usr/data', 'tmp/sdcard', 'proc', 'fixture'):
+            (player/name).mkdir(parents=True)
+        (player/'proc/mounts').write_text('/dev/mmcblk0p1 /tmp/sdcard exfat rw 0 0\n')
+        (player/'fixture/keys').write_text('play')
+        self.package.stage(first['zip'], player/'tmp/sdcard', profile='2.57', arch='fixture')
+        env = dict(os.environ, DISC_BOOT_FIXTURE_ROOT=str(player), DISC_BOOT_FIXTURE_TIMING='confirm=1,grace=2,card=2')
+        boot = lambda *a: subprocess.run([str(BOOT_FIXTURE), *a], env=env, capture_output=True, text=True, timeout=30)
+        status_file, log = player/'run/disc-boot/service.json', player/'run/disc-boot/service/log'
+        counter = iter(range(1000))
+
+        def wait(condition, timeout=30):
+            status, until = None, time.monotonic() + timeout
+            while time.monotonic() < until:
+                try:
+                    status = json.loads(status_file.read_text())
+                except (OSError, ValueError):
+                    status = None
+                if status and condition(status):
+                    return status
+                time.sleep(0.1)
+            self.fail(f'{status}; {log.read_text() if log.exists() else ""}')
+
+        def manager(method, path, body=None, change=False):
+            headers = {'Host': f'127.0.0.1:{manager_port}'}
+            if change:
+                headers.update({'X-Disc-Token': '20260926000042', 'X-Disc-Request': f'update-test-{next(counter):04d}-abcdef'})
+            for _ in range(100):
+                try:
+                    connection = http.client.HTTPConnection('127.0.0.1', manager_port, timeout=30)
+                    connection.request(method, path, body=body, headers=headers)
+                    response = connection.getresponse()
+                    return response.status, json.loads(response.read() or b'null')
+                except (ConnectionError, OSError):
+                    time.sleep(0.1)  # the server is restarting
+            self.fail('the manager does not answer')
+
+        try:
+            boot('early', '--profile', '2.57', '--card', '/tmp/sdcard', '--card-source', '/dev/mmcblk0p1')
+            boot('start')
+            wait(lambda s: s['state'] == 'confirmed' and s['version'] == '1')
+            # The signed update streams into the inactive slot, then boot switches to it on request.
+            status, answer = manager('POST', '/api/update', Path(second['update']).read_bytes(), change=True)
+            self.assertEqual((status, answer['version']), (200, '2'), answer)
+            self.assertEqual(manager('GET', '/api/update')[1]['staged'], {'name': 'disc-server', 'version': '2'})
+            self.assertEqual(manager('POST', '/api/update/activate', b'', change=True), (202, {'restarting': True, 'version': '2'}))
+            status = wait(lambda s: s['state'] == 'confirmed' and s['version'] == '2')
+            self.assertEqual((status['slot'], status['lastRequest']), ('b', 'activated disc-server 2'))
+            update = manager('GET', '/api/update')[1]
+            self.assertEqual((update['running']['version'], update['previous'], update['staged']),
+                             ('2', {'name': 'disc-server', 'version': '1'}, None))
+            # And back: the previous version, confirmed before, runs again.
+            self.assertEqual(manager('POST', '/api/update/rollback', b'', change=True), (202, {'restarting': True, 'version': '1'}))
+            status = wait(lambda s: s['state'] == 'confirmed' and s['version'] == '1')
+            self.assertEqual((status['slot'], status['lastRequest']), ('a', 'rolled back to disc-server 1'))
+            self.assertEqual(manager('GET', '/api/update')[1]['previous'], None)
         finally:
             boot('stop')
             subprocess.run(['pkill', '-f', str(player)], capture_output=True)

@@ -9,6 +9,11 @@ reviewed profiles, with the slot, the card, the run folder and the settings
 file ($DISC_BOOT_DATA/server.env: ports, the app served at "/") from the boot
 layer's environment. Boot supervises the package, so there is no --supervise,
 no image identity file and no card switch (its modes replace .disc/disabled).
+
+With --update-keys the package carries the public keys it trusts for the
+server's updates through the application manager (keys/update-keys); with
+--sign-key it is also written as a signed .update file (scripts/update_file.py).
+A package without keys takes no updates over the network.
 """
 import argparse
 import datetime
@@ -26,6 +31,7 @@ sys.path.insert(0, str(ROOT/'scripts'))
 from firmware_profile import (load_profile, load_usb_profile, load_os_profile, os_service_args, fingerprint,  # noqa: E402
                               apps, card_catalog, raw_switch, database, trash, internal_lists, external_lists)
 import app_bundle  # noqa: E402
+import update_file  # noqa: E402
 
 NAME = 'disc-server'
 CARD = '$DISC_BOOT_CARD'
@@ -47,9 +53,10 @@ def boot_module(name, relative):
     return module
 
 
-def service_args(profile, engineering, port=None, manager_port=None):
+def service_args(profile, engineering, port=None, manager_port=None, update_keys=False, serial_file=None):
     """The gateway's arguments under the boot layer, as the combined images' hook rendered them. The ports
-    come from the settings file (defaults 7870 and 7871); only test packages fix them here."""
+    come from the settings file (defaults 7870 and 7871); only test packages fix them, and the serial
+    number's file, here."""
     os_args = os_service_args(load_os_profile(profile))
     ports = []
     if port:
@@ -58,6 +65,9 @@ def service_args(profile, engineering, port=None, manager_port=None):
         ports += ['--manager-port', str(manager_port)]
     args = ['--listen', '0.0.0.0', *ports, '--upstream', '127.0.0.1', '--settings', '$DISC_BOOT_DATA/server.env',
             '--ready-file', '$DISC_BOOT_RUN/ready', '--boot-status', '$DISC_BOOT_STATUS',
+            '--update-slot', '$DISC_BOOT_INACTIVE', '--update-work', '$DISC_BOOT_DATA/update',
+            '--update-request', '$DISC_BOOT_REQUEST', '--boot-program', '$DISC_BOOT_PROGRAM',
+            *(['--update-keys', f'{SLOT}/keys/update-keys'] if update_keys else []),
             '--apps', apps(CARD), '--sd-mount', CARD, '--sd-source', load_usb_profile(profile)['sd_source'],
             '--commands-profile-sha256', fingerprint(profile),
             '--catalog', f'{SLOT}/catalog', '--card-catalog', card_catalog(CARD)]
@@ -66,7 +76,7 @@ def service_args(profile, engineering, port=None, manager_port=None):
     args += ['--data-root', '/usr/data/fiio/db']
     if engineering:
         args += ['--raw-marker', raw_switch(CARD)]
-    args += ['--current-lyrics', '/usr/data/fiio/encoder.lrc', '--serial-file', '/usr/data/fiio/sn.txt', *os_args,
+    args += ['--current-lyrics', '/usr/data/fiio/encoder.lrc', '--serial-file', serial_file or '/usr/data/fiio/sn.txt', *os_args,
              '--database', database(CARD), '--trash', trash(CARD),
              '--internal-lists', internal_lists(CARD), '--external-lists', external_lists(CARD)]
     for value in args:
@@ -96,7 +106,8 @@ def default_version():
     return f'{datetime.date.today():%Y.%m.%d}-{commit}' + ('+changes' if dirty else '')
 
 
-def build(binary, output, version=None, engineering=False, profile_version=None, arch=None, port=None, manager_port=None):
+def build(binary, output, version=None, engineering=False, profile_version=None, arch=None, port=None, manager_port=None,
+          update_keys=None, sign_key=None, serial_file=None):
     package = boot_module('boot_package', 'scripts/package.py')
     arch = arch or package.ARCH
     profile = load_profile(profile_version)
@@ -114,7 +125,12 @@ def build(binary, output, version=None, engineering=False, profile_version=None,
     (folder/'catalog').mkdir()
     shutil.copyfile(binary, folder/'bin/disc-service')
     (folder/'bin/disc-service').chmod(0o755)
-    (folder/'bin/run').write_text(start_script(service_args(profile, engineering, port, manager_port)))
+    if update_keys:
+        update_file.read_public_keys(update_keys)
+        (folder/'keys').mkdir()
+        shutil.copyfile(update_keys, folder/'keys/update-keys')
+        (folder/'keys/update-keys').chmod(0o644)
+    (folder/'bin/run').write_text(start_script(service_args(profile, engineering, port, manager_port, bool(update_keys), serial_file)))
     (folder/'bin/run').chmod(0o755)
     for name, data in app_bundle.catalog_files(profile).items():
         (folder/'catalog'/name).write_bytes(data)
@@ -122,10 +138,12 @@ def build(binary, output, version=None, engineering=False, profile_version=None,
     manifest = package.describe(folder, NAME, version, 'service', 'bin/run', ready=30, profiles=[profile['version']], arch=arch)
     package.check(folder, 'service', profile['version'], arch=arch)
     archive = package.zip_package(folder, output/f'{NAME}-{version}.zip')
+    signed = update_file.pack(folder, sign_key, output/f'{NAME}-{version}.update') if sign_key else None
     return dict(name=NAME, version=version, engineering=engineering, arch=arch, folder=str(folder),
                 files=len(manifest['files']), bytes=sum(f['size'] for f in manifest['files'].values()),
                 zip=archive['zip'], zipSha256=archive['sha256'], profile=profile['version'],
-                profileSha256=fingerprint(profile))
+                profileSha256=fingerprint(profile), updateKeys=bool(update_keys),
+                update=signed['update'] if signed else None, updateSha256=signed['sha256'] if signed else None)
 
 
 def main():
@@ -138,9 +156,11 @@ def main():
     p.add_argument('--arch', help='Only for test packages (default: the player)')
     p.add_argument('--port', type=int, help='Only for test packages (default: the settings file, else 7870)')
     p.add_argument('--manager-port', type=int, help='Only for test packages (default: the settings file, else 7871)')
+    p.add_argument('--update-keys', type=Path, help='Public keys the package trusts for its updates (update_file.py public)')
+    p.add_argument('--sign-key', type=Path, help='Also write the package as a .update file signed with this key')
     args = p.parse_args()
     print(json.dumps(build(args.binary, args.output, args.version, args.engineering, args.profile, args.arch, args.port,
-                           args.manager_port), indent=2))
+                           args.manager_port, args.update_keys, args.sign_key), indent=2))
 
 
 if __name__ == '__main__':

@@ -21,7 +21,7 @@ for the apps and the card's catalog override.
 | Path | Purpose |
 | --- | --- |
 | `device/src/` | The gateway (`disc-service`) |
-| `device/vendor/` | Pinned CivetWeb, jsmn, miniz and SQLite sources with licenses |
+| `device/vendor/` | Pinned CivetWeb, jsmn, miniz, Monocypher and SQLite sources with licenses |
 | `apps/probe/` | Embedded RU/EN diagnostic browser page |
 | `firmware/` | Reviewed profiles and catalogs: commands, queries, store, hosted, origins, OS facts, card layout |
 | `scripts/` | Builds, the package (`build_package.py`), tests, catalog tools, card tools (`app_bundle.py`, `card_move.py`), emulator orchestration |
@@ -103,6 +103,33 @@ Volume Up at power-on, or the default mode `stock`, replaces `.disc/disabled`.
 The version defaults to `<date>-<commit>` (`-engineering` for that variant).
 Stage it on a card for the recovery with Play with snowsky-disc-boot's
 `scripts/package.py stage`.
+
+### Signed updates
+
+The manager takes a release as a signed `.update` stream
+(`docs/service-contract.md`, "The server's updates"). The signing key stays
+outside every repository; its public half goes into the packages that
+should accept what it signs:
+
+```sh
+python3 scripts/update_file.py keygen --output ~/.config/snowsky-disc/update.key   # once; prints the public key
+python3 scripts/update_file.py public --key ~/.config/snowsky-disc/update.key > work/update-keys
+python3 scripts/build_package.py --output work/package-003 \
+  --update-keys work/update-keys --sign-key ~/.config/snowsky-disc/update.key
+python3 scripts/update_file.py inspect work/package-003/disc-server-*.update --keys work/update-keys
+```
+
+A package built without `--update-keys` takes no updates over the network.
+`build/host/update-tool` stages a stream as the gateway does, without HTTP
+(`test_update`); `scripts/ed25519.py` is RFC 8032's reference code, checked
+against its vectors, and the gateway verifies with Monocypher. The same rule
+tests run the MIPS driver under qemu-user:
+
+```sh
+docker run --rm --network none --entrypoint sh -v "$PWD:/src:ro" \
+  -e DISC_UPDATE_TOOL_COMMAND='["qemu-mipsel-static","/src/build/mips/update-tool"]' \
+  snowsky-disc-qemu-ci -c 'cd /src/tests/conformance && python3 -B -m unittest test_update'
+```
 
 `tests/integration/package_guest.py --package <zip>` runs the MIPS package
 under the MIPS `disc-boot` in the disposable V2.57 guest beside stock (the

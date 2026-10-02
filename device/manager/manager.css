@@ -22,7 +22,9 @@ button.quiet { color: var(--muted); }
 button.danger { border-color: var(--bad); color: var(--bad); }
 button[type=submit] { border-color: var(--accent); background: var(--accent); color: #fff; }
 input[type=text], input:not([type]) { font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--raised); color: var(--ink); width: 100%; max-width: 320px; }
-#install-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+#install-form, #update-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.switches { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; font-size: 14px; }
+.switches > span { flex-basis: 100%; }
 input[type=file] { font: inherit; font-size: 14px; color: var(--muted); max-width: 100%; }
 input[type=file]::file-selector-button { font: inherit; font-size: 14px; padding: 6px 12px; margin-right: 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--raised); color: var(--ink); cursor: pointer; }
 .progress { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 12px; font-size: 14px; color: var(--muted); }

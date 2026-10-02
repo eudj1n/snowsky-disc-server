@@ -53,10 +53,12 @@ Owner's decisions (2026-10-02):
   with the chosen app, or redirects to the manager. Another origin (the
   port), so no app can drive the manager or its API. `Apps/` changes only
   through it. Later: updating apps.
-- **Ports from a settings file** with defaults 7870 and 7871: an optional
-  `.disc/server.env` on the card, `KEY=VALUE` with known keys only (`PORT`,
-  `MANAGER_PORT`), validated and never executed; `/api/about` shows the
-  ports in effect.
+- **Ports from a settings file** with defaults 7870 and 7871: `KEY=VALUE`
+  with known keys only (`PORT`, `MANAGER_PORT`, later `DEFAULT_APP`),
+  validated and never executed; `/api/about` shows the ports in effect.
+  First proposed on the card (`.disc/server.env`), it moved to the
+  package's own data in step 2a (the card is mounted after the service
+  starts).
 
 Steps: (1) the gateway only as a package: no card switch, supervisor, image
 identity file, image copy of an app or embedded probe page; (2) the manager:
@@ -89,12 +91,38 @@ started as the package under `disc-boot`, the integration checks on it.
   `disc-boot` beside stock, ready, confirmed after 184 s, `/api/health` and
   stock's library through `/api/data/library_summary`, stopped through the
   boot program, the stack's companion restored.
-- [ ] Updates: a package received through the gateway, checked
-  (`disc-boot verify`), staged into the inactive slot and activated by a
-  request; our signature (ed25519) on released packages and the usual
-  authorization (serial number, request ID, control owner); the page
-  confirms an update by the new version after the restart, not by the
-  transport's success.
+- [x] Step 3, the server's updates in the manager (2026-10-02): a release
+  is also a `.update` stream (`DISCUPD1`, an Ed25519 signature over
+  `package.json`, its length, `package.json`, the files in its order),
+  written by `scripts/update_file.py` (`keygen`, `public`, `pack`,
+  `inspect`; RFC 8032's reference code in `scripts/ed25519.py`) and by
+  `build_package.py --update-keys --sign-key`. The gateway trusts the keys
+  its own package carries, checks the signature before writing anything,
+  then the name, role, paths, sizes, hashes, modes and length as the bytes
+  arrive (Monocypher 4.0.2 and boot's SHA-256, vendored), writes into
+  `$DISC_BOOT_DATA/update`, has `$DISC_BOOT_PROGRAM verify` check it and only
+  then swaps it into the inactive slot: a refused or interrupted upload
+  keeps the version a rollback returns to. Updates wait for a confirmed
+  running version. `activate` and `rollback` write boot's request, answer
+  202 and exit; the page waits for the boot layer's new answer, then for
+  the confirmation, and says when boot kept or restored another version.
+  Designing it found a boot defect, fixed there (snowsky-disc-boot
+  `dfff942`): a rollback made an update staged over the previous version the
+  confirmed one; boot now keeps the previous version's fingerprint, and
+  gives packages `DISC_BOOT_PROGRAM` (`5d3047d`, `069e873` for the
+  fixture's world). Evidence: `test_update` (every refusal leaves the slot
+  as it was, RFC 8032 vectors, the tool), `test_gateway` (the routes against
+  a stand-in boot layer: not under boot, unconfirmed, wrong key, staged,
+  activate and rollback with the request written and the exit, an update
+  over the previous version ending the rollback), `test_package_build`
+  (with the real `disc-boot` fixture: version 1 installed with Play and
+  confirmed, version 2 uploaded signed through the manager, activated and
+  confirmed in slot b, then rolled back to version 1 in slot a), and a
+  real-browser run of the page against that fixture: upload, the question,
+  the restart, the tentative version, its confirmation, the return. The
+  MIPS gateway is 5,311,360 bytes (Monocypher's code 70 KB; 3.4 MB of the
+  file is debug information); `update-tool`, `app-install-tool` and the
+  SHA-256 vectors pass as MIPS builds under qemu-user.
 - [x] The default app (owner, 2026-10-02): no copy of an app in the package;
   apps live on the card and the manager installs them.
 - [x] Step 1, the gateway only as a package (2026-10-02): the card switch,

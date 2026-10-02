@@ -5,6 +5,7 @@
 #include "webroot.h"
 #include "settings.h"
 #include "apps.h"
+#include "update.h"
 #include "catalog.h"
 #include "data.h"
 #include "media.h"
@@ -68,8 +69,11 @@ typedef struct {
     const char *ready_file, *boot_status;
     /* The application manager (owner, 2026-10-02): its own listener and origin; the settings file
      * (ports, the app served at "/") as last read or written, guarded by lock. */
-    int manager_port, apps_active;
+    int manager_port, manager_busy;
     const char *manager_authority, *settings_file;
+    /* The server's updates (owner, 2026-10-02): the boot layer's inactive slot and request file,
+     * the public keys this package trusts and the boot program that checks a staged update. */
+    const char *update_slot, *update_work, *update_request, *update_keys, *boot_program;
     disc_settings settings;
     /* The reviewed catalogs (combined-009): the image's (catalog_dir), the
      * card's queries.json and store.json (card_catalog_dir) and, on the
@@ -2271,10 +2275,10 @@ static int app_install_route(struct mg_connection *c, server *s) {
     if (!s->webroot.root) return error(c, 409, "No apps folder is configured\n");
     if (s->webroot.mount && !disc_webroot_available(&s->webroot)) return error(c, 503, "Card is not owned by the player\n");
     pthread_mutex_lock(&s->lock);
-    int busy = s->apps_active;
-    if (!busy) s->apps_active = 1;
+    int busy = s->manager_busy;
+    if (!busy) s->manager_busy = 1;
     pthread_mutex_unlock(&s->lock);
-    if (busy) return error(c, 409, "Another app is being installed\n");
+    if (busy) return error(c, 409, "Another change is running\n");
     char folder[256], upload[300], problem[256] = "";
     const char *slash = strrchr(s->webroot.root, '/');
     int code = 0;
@@ -2324,7 +2328,7 @@ static int app_install_route(struct mg_connection *c, server *s) {
         code = b.overflow ? error(c, 500, "Answer too large\n") : response(c, 200, "application/json; charset=utf-8", b.data, b.used);
         free(b.data);
     }
-    pthread_mutex_lock(&s->lock); s->apps_active = 0; pthread_mutex_unlock(&s->lock);
+    pthread_mutex_lock(&s->lock); s->manager_busy = 0; pthread_mutex_unlock(&s->lock);
     return code;
 }
 /* DELETE /api/apps/<App>: removes an installed app; a removed chosen app is no longer chosen.
@@ -2338,10 +2342,10 @@ static int app_remove_route(struct mg_connection *c, server *s, const char *name
     if (!s->webroot.root || !disc_app_name_ok(name)) return error(c, 404, "No such app\n");
     if (s->webroot.mount && !disc_webroot_available(&s->webroot)) return error(c, 503, "Card is not owned by the player\n");
     pthread_mutex_lock(&s->lock);
-    int busy = s->apps_active;
-    if (!busy) s->apps_active = 1;
+    int busy = s->manager_busy;
+    if (!busy) s->manager_busy = 1;
     pthread_mutex_unlock(&s->lock);
-    if (busy) return error(c, 409, "Another app is being installed\n");
+    if (busy) return error(c, 409, "Another change is running\n");
     char problem[160] = "";
     int removed = disc_app_remove(s->webroot.root, name, problem, sizeof(problem)), code = 0;
     if (removed == DISC_APP_REFUSED) code = error(c, 404, "No such app\n");
@@ -2356,8 +2360,173 @@ static int app_remove_route(struct mg_connection *c, server *s, const char *name
         pthread_mutex_unlock(&s->lock);
         disc_log("An app was removed through the manager\n");
     }
-    pthread_mutex_lock(&s->lock); s->apps_active = 0; pthread_mutex_unlock(&s->lock);
+    pthread_mutex_lock(&s->lock); s->manager_busy = 0; pthread_mutex_unlock(&s->lock);
     return code ? code : apps_route(c, s);
+}
+/* The boot layer's status of this service's role (service.json, snowsky-disc-boot docs/contract.md). */
+typedef struct {
+    int present, confirmed, previous;
+    char name[33], version[65], slot[2], state[16], last_request[200];
+    char previous_name[33], previous_version[65], previous_manifest[65];
+} boot_role;
+static void read_boot_role(server *s, boot_role *r) {
+    memset(r, 0, sizeof(*r));
+    char path[256], text[4097];
+    if (!s->boot_status || snprintf(path, sizeof(path), "%s/service.json", s->boot_status) >= (int)sizeof(path)) return;
+    int fd = open(path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
+    ssize_t n = fd >= 0 ? read(fd, text, sizeof(text) - 1) : -1;
+    if (fd >= 0) close(fd);
+    while (n > 0 && (text[n - 1] == '\n' || text[n - 1] == ' ')) n--;
+    if (n <= 1 || !disc_json_object(text, (size_t)n)) return;
+    text[n] = 0;
+    jsmntok_t *t = NULL;
+    int i, p;
+    if (disc_json_parse(text, (size_t)n, &t, 64) <= 0) { free(t); return; }
+    r->present = (i = disc_json_find(text, t, 0, "name")) > 0 && disc_json_string(text, &t[i], r->name, sizeof(r->name)) > 0 &&
+                 (i = disc_json_find(text, t, 0, "version")) > 0 && disc_json_string(text, &t[i], r->version, sizeof(r->version)) > 0;
+    if ((i = disc_json_find(text, t, 0, "slot")) > 0) (void)disc_json_string(text, &t[i], r->slot, sizeof(r->slot));
+    if ((i = disc_json_find(text, t, 0, "state")) > 0) (void)disc_json_string(text, &t[i], r->state, sizeof(r->state));
+    if ((i = disc_json_find(text, t, 0, "confirmed")) > 0) (void)disc_json_boolean(text, &t[i], &r->confirmed);
+    if ((i = disc_json_find(text, t, 0, "lastRequest")) > 0) (void)disc_json_string(text, &t[i], r->last_request, sizeof(r->last_request));
+    if ((p = disc_json_find(text, t, 0, "previous")) > 0 && t[p].type == JSMN_OBJECT)
+        r->previous = (i = disc_json_find(text, t, p, "name")) > 0 && disc_json_string(text, &t[i], r->previous_name, sizeof(r->previous_name)) > 0 &&
+                      (i = disc_json_find(text, t, p, "version")) > 0 && disc_json_string(text, &t[i], r->previous_version, sizeof(r->previous_version)) > 0 &&
+                      (i = disc_json_find(text, t, p, "manifest")) > 0 && !disc_json_sha256(text, &t[i], r->previous_manifest);
+    free(t);
+}
+/* What the inactive slot holds: the version a rollback returns to (while boot's fingerprint of it
+ * matches), else an update staged there, else nothing. */
+typedef struct { boot_role role; int under_boot, previous, staged; char name[33], version[65]; } update_view;
+static void read_update_view(server *s, update_view *v) {
+    memset(v, 0, sizeof(*v));
+    read_boot_role(s, &v->role);
+    v->under_boot = s->boot_status && s->update_slot && s->update_work && s->update_request && s->boot_program && v->role.present;
+    char sha[65];
+    if (!v->under_boot || disc_update_slot(s->update_slot, v->name, v->version, sha)) return;
+    if (v->role.previous && !strcmp(sha, v->role.previous_manifest)) v->previous = 1;
+    else v->staged = 1;
+}
+static void put_package(disc_buffer *b, const char *name, const char *version) {
+    disc_buffer_text(b, "{\"name\":");
+    disc_buffer_string(b, name, strlen(name));
+    disc_buffer_text(b, ",\"version\":");
+    disc_buffer_string(b, version, strlen(version));
+    disc_buffer_text(b, "}");
+}
+/* GET /api/update: whether this server takes updates, what runs, what a rollback returns to and
+ * what is staged. */
+static int update_route(struct mg_connection *c, server *s) {
+    update_view v;
+    read_update_view(s, &v);
+    const char *why = !v.under_boot ? "This server does not run under the boot layer"
+                    : disc_update_keys(s->update_keys) <= 0 ? "This build carries no update keys" : NULL;
+    disc_buffer b = {0};
+    disc_buffer_text(&b, why ? "{\"available\":false,\"why\":" : "{\"available\":true,\"why\":null");
+    if (why) disc_buffer_string(&b, why, strlen(why));
+    disc_buffer_text(&b, ",\"running\":");
+    if (v.role.present) {
+        disc_buffer_text(&b, "{\"name\":");
+        disc_buffer_string(&b, v.role.name, strlen(v.role.name));
+        disc_buffer_text(&b, ",\"version\":");
+        disc_buffer_string(&b, v.role.version, strlen(v.role.version));
+        disc_buffer_text(&b, ",\"state\":");
+        disc_buffer_string(&b, v.role.state, strlen(v.role.state));
+        disc_buffer_text(&b, v.role.confirmed ? ",\"confirmed\":true}" : ",\"confirmed\":false}");
+    } else disc_buffer_text(&b, "null");
+    disc_buffer_text(&b, ",\"previous\":");
+    if (v.previous) put_package(&b, v.name, v.version); else disc_buffer_text(&b, "null");
+    disc_buffer_text(&b, ",\"staged\":");
+    if (v.staged) put_package(&b, v.name, v.version); else disc_buffer_text(&b, "null");
+    disc_buffer_text(&b, ",\"lastRequest\":");
+    if (v.role.last_request[0]) disc_buffer_string(&b, v.role.last_request, strlen(v.role.last_request));
+    else disc_buffer_text(&b, "null");
+    disc_buffer_text(&b, "}");
+    int code = b.overflow ? error(c, 500, "Answer too large\n") : response(c, 200, "application/json; charset=utf-8", b.data, b.used);
+    free(b.data);
+    return code;
+}
+static int take_busy(server *s) {
+    pthread_mutex_lock(&s->lock);
+    int busy = s->manager_busy;
+    if (!busy) s->manager_busy = 1;
+    pthread_mutex_unlock(&s->lock);
+    return busy;
+}
+static void drop_busy(server *s) { pthread_mutex_lock(&s->lock); s->manager_busy = 0; pthread_mutex_unlock(&s->lock); }
+static int read_request_body(void *context, void *buffer, size_t n) { return mg_read(context, buffer, n); }
+/* POST /api/update: a .update file, checked as it arrives and written into the inactive slot. */
+static int update_upload_route(struct mg_connection *c, server *s) {
+    const struct mg_request_info *r = mg_get_request_info(c);
+    const char *cl = mg_get_header(c, "Content-Length");
+    unsigned length = 0;
+    if (r->query_string) return error(c, 405, "The route takes no query\n");
+    if (mg_get_header(c, "Transfer-Encoding") || header_count(c, "Content-Length") != 1 || !decimal(cl, 0x7fffffff, &length) || !length)
+        return error(c, 411, "An update with its Content-Length is required\n");
+    if (length > DISC_UPDATE_MAX) return error(c, 413, "The update is too large\n");
+    int refused = manager_mutation(c, s, "apps");
+    if (refused) return refused;
+    update_view v;
+    read_update_view(s, &v);
+    if (!v.under_boot) return error(c, 409, "This server does not run under the boot layer\n");
+    if (disc_update_keys(s->update_keys) <= 0) return error(c, 409, "This build carries no update keys\n");
+    if (!v.role.confirmed) return error(c, 409, "The running version is not confirmed yet; an update waits for it\n");
+    if (take_busy(s)) return error(c, 409, "Another change is running\n");
+    disc_update_config config = {s->update_slot, s->update_work, s->update_keys, v.role.name, s->boot_program};
+    disc_update_result result;
+    char problem[300] = "", text[320];
+    int staged = disc_update_stage(&config, length, read_request_body, c, &result, problem, sizeof(problem)), code;
+    drop_busy(s);
+    if (staged != DISC_UPDATE_OK) {
+        snprintf(text, sizeof(text), "%s\n", problem);
+        return error(c, staged == DISC_UPDATE_REFUSED ? 422 : staged == DISC_UPDATE_NO_ROOM ? 507 : staged == DISC_UPDATE_SHORT ? 400 : 500, text);
+    }
+    disc_log("A server update was staged\n");
+    disc_buffer b = {0};
+    disc_buffer_text(&b, "{\"name\":");
+    disc_buffer_string(&b, result.name, strlen(result.name));
+    disc_buffer_text(&b, ",\"version\":");
+    disc_buffer_string(&b, result.version, strlen(result.version));
+    disc_buffer_text(&b, ",\"files\":");
+    disc_buffer_int(&b, result.files);
+    disc_buffer_text(&b, ",\"bytes\":");
+    disc_buffer_int(&b, result.bytes);
+    disc_buffer_text(&b, "}");
+    code = b.overflow ? error(c, 500, "Answer too large\n") : response(c, 200, "application/json; charset=utf-8", b.data, b.used);
+    free(b.data);
+    return code;
+}
+/* POST /api/update/activate and /rollback: a request for the boot layer, then this server exits so
+ * boot applies it; the page confirms the outcome by the version that answers afterwards. */
+static int update_switch_route(struct mg_connection *c, server *s, const char *action) {
+    const struct mg_request_info *r = mg_get_request_info(c);
+    const char *cl = mg_get_header(c, "Content-Length");
+    if (r->query_string || (cl && strcmp(cl, "0")) || mg_get_header(c, "Transfer-Encoding")) return error(c, 405, "A bodyless POST without a query\n");
+    int refused = manager_mutation(c, s, "apps");
+    if (refused) return refused;
+    update_view v;
+    read_update_view(s, &v);
+    if (!v.under_boot) return error(c, 409, "This server does not run under the boot layer\n");
+    int activate = !strcmp(action, "activate");
+    if (activate && !v.staged) return error(c, 409, "No update is staged\n");
+    if (!activate && !v.previous) return error(c, 409, "There is no previous version to return to\n");
+    if (take_busy(s)) return error(c, 409, "Another change is running\n");
+    char problem[200], text[260];
+    if (activate && disc_update_verify(s->boot_program, s->update_slot, problem, sizeof(problem))) {
+        drop_busy(s);
+        snprintf(text, sizeof(text), "The boot layer refused the update: %s\n", problem);
+        return error(c, 422, text);
+    }
+    if (disc_update_request(s->update_request, action)) { drop_busy(s); return error(c, 500, "The request for the boot layer could not be written\n"); }
+    disc_log(activate ? "Restarting into the staged update\n" : "Restarting into the previous version\n");
+    disc_buffer b = {0};
+    disc_buffer_text(&b, "{\"restarting\":true,\"version\":");
+    disc_buffer_string(&b, v.version, strlen(v.version));
+    disc_buffer_text(&b, "}");
+    int code = response(c, 202, "application/json; charset=utf-8", b.data, b.used);
+    free(b.data);
+    /* The manager stays busy: nothing else changes before the exit. */
+    stopping = 1;
+    return code;
 }
 static int manager_request(struct mg_connection *c, void *arg) {
     server *s = arg;
@@ -2368,6 +2537,9 @@ static int manager_request(struct mg_connection *c, void *arg) {
     if (!uri) return error(c, 404, "Not found\n");
     if (!strcmp(uri, "/api/apps/default") && strcmp(method, "DELETE")) return strcmp(method, "PUT") ? error(c, 405, "PUT only\n") : default_app_route(c, s);
     if (!strcmp(uri, "/api/apps") && !strcmp(method, "POST")) return app_install_route(c, s);
+    if (!strcmp(uri, "/api/update") && !strcmp(method, "POST")) return update_upload_route(c, s);
+    if (!strcmp(uri, "/api/update/activate") || !strcmp(uri, "/api/update/rollback"))
+        return strcmp(method, "POST") ? error(c, 405, "POST only\n") : update_switch_route(c, s, uri + 12);
     if (!strncmp(uri, "/api/apps/", 10) && !strcmp(method, "DELETE")) return app_remove_route(c, s, uri + 10);
     int head = !strcmp(method, "HEAD");
     const char *cl = mg_get_header(c, "Content-Length");
@@ -2377,6 +2549,7 @@ static int manager_request(struct mg_connection *c, void *arg) {
     if (!strncmp(uri, "/api/", 5) && head) return error(c, 405, "HEAD is only supported for the manager's page\n");
     if (!strcmp(uri, "/api/about")) return about_route(c, s);
     if (!strcmp(uri, "/api/apps")) return apps_route(c, s);
+    if (!strcmp(uri, "/api/update")) return update_route(c, s);
     if (!strncmp(uri, "/api/", 5)) return error(c, 404, "Not found\n");
     return manager_asset(c, uri, head);
 }
@@ -2417,6 +2590,11 @@ static int service_main(int argc, char **argv) {
         else if (!strcmp(key, "--card-commands")) s.card_commands = v;
         else if (!strcmp(key, "--ready-file")) s.ready_file = v;
         else if (!strcmp(key, "--boot-status")) s.boot_status = v;
+        else if (!strcmp(key, "--update-slot")) s.update_slot = v;
+        else if (!strcmp(key, "--update-work")) s.update_work = v;
+        else if (!strcmp(key, "--update-request")) s.update_request = v;
+        else if (!strcmp(key, "--update-keys")) s.update_keys = v;
+        else if (!strcmp(key, "--boot-program")) s.boot_program = v;
         else if (!strcmp(key, "--mdns-name")) s.mdns_name = v;
         else if (!strcmp(key, "--cors-origin")) {
             if (cors_count >= DISC_CORS_MAX || !cors_origin_valid(v)) { disc_log("Invalid --cors-origin\n"); return 2; }
@@ -2460,6 +2638,11 @@ static int service_main(int argc, char **argv) {
         !s.manager_port || s.manager_port == s.port || strlen(s.manager_authority) > 120 ||
         strspn(s.manager_authority, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.:-") != strlen(s.manager_authority) ||
         (s.boot_status && (s.boot_status[0] != '/' || strlen(s.boot_status) > 200)) ||
+        (s.update_slot && (s.update_slot[0] != '/' || strlen(s.update_slot) > 200)) ||
+        (s.update_work && (s.update_work[0] != '/' || strlen(s.update_work) > 200)) ||
+        (s.update_request && (s.update_request[0] != '/' || strlen(s.update_request) > 200)) ||
+        (s.update_keys && (s.update_keys[0] != '/' || strlen(s.update_keys) > 240)) ||
+        (s.boot_program && (s.boot_program[0] != '/' || strlen(s.boot_program) > 240)) ||
         (s.mdns_name && (!*s.mdns_name || strlen(s.mdns_name) > 63 || s.mdns_name[0] == '-' ||
                          s.mdns_name[strlen(s.mdns_name) - 1] == '-' ||
                          strspn(s.mdns_name, "abcdefghijklmnopqrstuvwxyz0123456789-") != strlen(s.mdns_name))) ||

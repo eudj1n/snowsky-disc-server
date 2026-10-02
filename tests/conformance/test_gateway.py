@@ -1,5 +1,6 @@
 """Catalog-driven admission of the native gateway; synthetic card, fake stock, no firmware."""
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import hashlib
 import http.client
 import importlib.util
 import io
@@ -26,6 +27,8 @@ spec = importlib.util.spec_from_file_location('app_bundle', ROOT/'scripts/app_bu
 bundle = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(bundle)
 from scripts import command_catalog, disc_database, firmware_profile, origins_catalog
+sys.path.insert(0, str(ROOT/'scripts'))
+import ed25519  # noqa: E402
 import shutil
 import stock_schema
 
@@ -1777,6 +1780,104 @@ class GatewayTests(unittest.TestCase):
         status, _, headers = self.http('GET', '/')
         self.assertEqual((status, headers['location']), (302, f'http://127.0.0.1:{self.manager_port}/'), 'no app is left')
 
+    UPDATE_KEY = bytes(range(32))  # a test key
+    BOOT_STAND_IN = """#!/bin/sh
+printf '%s\\n' "$*" >> "$(dirname "$0")/verify.log"
+printf '{"ok":true,"name":"disc-server","version":"x","bytes":1}\\n'
+"""
+
+    def update_files(self, version):
+        files = {'bin/run': f'#!/bin/sh\n# {version}\n'.encode(), 'catalog/commands.json': b'{}\n'}
+        listed = {path: dict(size=len(data), sha256=hashlib.sha256(data).hexdigest(), mode='0755' if path == 'bin/run' else '0644')
+                  for path, data in files.items()}
+        manifest = json.dumps(dict(schema=1, name='disc-server', version=version, role='service', bootApi=1, arch='fixture',
+                                   profiles=['2.57'], entry='bin/run', args=[], ready=30, files=listed)).encode()
+        return manifest, files
+
+    def update_stream(self, version, key=None):
+        manifest, files = self.update_files(version)
+        return (b'DISCUPD1' + ed25519.sign(key or self.UPDATE_KEY, manifest) + struct.pack('<I', len(manifest)) + manifest +
+                b''.join(files.values()))
+
+    def boot_layer(self, version='1', slot='a', confirmed=True, previous=None):
+        """A stand-in boot layer: its status of the service, the slots, the request file and its program."""
+        boot = self.root/'boot'
+        for name in ('status', 'service/a', 'service/b', 'data'):
+            (boot/name).mkdir(parents=True, exist_ok=True)
+        program = boot/'disc-boot'
+        program.write_text(self.BOOT_STAND_IN); program.chmod(0o755)
+        (boot/'update-keys').write_text(ed25519.public_key(self.UPDATE_KEY).hex() + '\n')
+        (boot/'status/service.json').write_text(json.dumps(dict(
+            schema=1, role='service', state='confirmed' if confirmed else 'ready', name='disc-server', version=version, slot=slot,
+            confirmed=confirmed, failures=0, note='', lastRequest=None, previous=previous)))
+        inactive = 'b' if slot == 'a' else 'a'
+        return boot, ('--boot-status', str(boot/'status'), '--update-slot', str(boot/'service'/inactive),
+                      '--update-work', str(boot/'data/update'), '--update-request', str(boot/'service/request'),
+                      '--update-keys', str(boot/'update-keys'), '--boot-program', str(program))
+
+    def exits(self):
+        self.assertEqual(self.proc.wait(timeout=10), 0, 'the server exits for boot to apply its request')
+        self.proc = None
+
+    def test_the_manager_stages_an_update_and_asks_boot_to_switch(self):
+        www, _ = self.publish()
+        self.start(www)
+        update = json.loads(self.manager('GET', '/api/update')[1])
+        self.assertEqual((update['available'], update['why']), (False, 'This server does not run under the boot layer'))
+        self.assertEqual(self.manager('POST', '/api/update', None, self.update_stream('2'), change=True)[:2],
+                         (409, b'This server does not run under the boot layer\n'))
+        self.proc.terminate(); self.proc.wait(timeout=5)
+        boot, options = self.boot_layer(confirmed=False)
+        self.start(www, extra=options)
+        self.assertEqual(json.loads(self.manager('GET', '/api/update')[1]),
+                         {'available': True, 'why': None, 'running': {'name': 'disc-server', 'version': '1', 'state': 'ready', 'confirmed': False},
+                          'previous': None, 'staged': None, 'lastRequest': None})
+        # Only while the running version is confirmed, with the serial number, signed by a trusted key.
+        self.assertEqual(self.manager('POST', '/api/update', None, self.update_stream('2'), change=True)[:2],
+                         (409, b'The running version is not confirmed yet; an update waits for it\n'))
+        self.boot_layer(confirmed=True)
+        self.assertEqual(self.manager('POST', '/api/update', {'X-Disc-Request': self.next_request()}, self.update_stream('2'))[0], 403)
+        self.assertEqual(self.manager('POST', '/api/update', None, self.update_stream('2', bytes(range(1, 33))), change=True)[:2],
+                         (422, b'The update is not signed by a key this server trusts\n'))
+        self.assertEqual(list((boot/'service/b').iterdir()), [])
+        self.assertEqual(self.http('POST', '/api/update', {'X-Disc-Token': TOKEN, 'X-Disc-Request': self.next_request()},
+                                   self.update_stream('2'))[0], 405, "the apps' port has no such route")
+        status, body, _ = self.manager('POST', '/api/update', None, self.update_stream('2'), change=True)
+        self.assertEqual(status, 200, body)
+        manifest, files = self.update_files('2')
+        self.assertEqual(json.loads(body), {'name': 'disc-server', 'version': '2', 'files': 2, 'bytes': sum(map(len, files.values()))})
+        self.assertEqual((boot/'service/b/package.json').read_bytes(), manifest)
+        self.assertEqual(json.loads(self.manager('GET', '/api/update')[1])['staged'], {'name': 'disc-server', 'version': '2'})
+        self.assertEqual(self.manager('POST', '/api/update/rollback', None, b'', change=True)[:2],
+                         (409, b'There is no previous version to return to\n'))
+        self.assertEqual(self.manager('POST', '/api/update/activate', {'X-Disc-Request': self.next_request()}, b'')[0], 403)
+        self.assertFalse((boot/'service/request').exists())
+        status, body, _ = self.manager('POST', '/api/update/activate', None, b'', change=True)
+        self.assertEqual((status, json.loads(body)), (202, {'restarting': True, 'version': '2'}))
+        self.assertEqual(json.loads((boot/'service/request').read_text()), {'action': 'activate'})
+        self.exits()
+        # Version 2 runs from slot b; slot a keeps version 1, the version a rollback returns to.
+        (boot/'service/request').unlink()
+        old, _ = self.update_files('1')
+        (boot/'service/a/package.json').write_bytes(old)
+        previous = dict(slot='a', name='disc-server', version='1', manifest=hashlib.sha256(old).hexdigest())
+        boot, options = self.boot_layer(version='2', slot='b', previous=previous)
+        self.start(www, extra=options)
+        update = json.loads(self.manager('GET', '/api/update')[1])
+        self.assertEqual((update['running']['version'], update['previous'], update['staged']), ('2', {'name': 'disc-server', 'version': '1'}, None))
+        self.assertEqual(self.manager('POST', '/api/update/activate', None, b'', change=True)[:2], (409, b'No update is staged\n'))
+        status, body, _ = self.manager('POST', '/api/update/rollback', None, b'', change=True)
+        self.assertEqual((status, json.loads(body)), (202, {'restarting': True, 'version': '1'}))
+        self.assertEqual(json.loads((boot/'service/request').read_text()), {'action': 'rollback'})
+        self.exits()
+        # A new update staged over the previous version replaces it: no rollback to it any more.
+        (boot/'service/request').unlink()
+        self.start(www, extra=options)
+        self.assertEqual(self.manager('POST', '/api/update', None, self.update_stream('3'), change=True)[0], 200)
+        update = json.loads(self.manager('GET', '/api/update')[1])
+        self.assertEqual((update['previous'], update['staged']), (None, {'name': 'disc-server', 'version': '3'}))
+        self.assertEqual(self.manager('POST', '/api/update/rollback', None, b'', change=True)[0], 409)
+
     def test_the_manager_installs_one_app_at_a_time(self):
         www, _ = self.publish()
         self.start(www)
@@ -1789,7 +1890,7 @@ class GatewayTests(unittest.TestCase):
                 if upload.exists(): break
                 time.sleep(.02)
             self.assertTrue(upload.exists())
-            self.assertEqual(self.manager('POST', '/api/apps', None, radio, change=True)[:2], (409, b'Another app is being installed\n'))
+            self.assertEqual(self.manager('POST', '/api/apps', None, radio, change=True)[:2], (409, b'Another change is running\n'))
             self.assertEqual(self.manager('DELETE', '/api/apps/Disc%20Player', body=b'', change=True)[0], 409)
         # The upload that ended early leaves nothing behind.
         for _ in range(100):

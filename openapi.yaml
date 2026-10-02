@@ -599,6 +599,54 @@ paths:
         '403': { description: Serial number or request ID missing, or another origin }
         '404': { description: No such app installed }
         '409': { description: An installation is running }
+  /api/update:
+    get:
+      tags: [manager]
+      summary: The server's updates (the manager's port only)
+      description: |
+        Whether this server takes updates (under the boot layer, with update
+        keys), the running version, the version a rollback returns to while the
+        inactive slot still holds it, and an update staged there.
+      responses:
+        '200': { description: "{available, why, running: {name, version, state, confirmed} | null, previous: {name, version} | null, staged: {name, version} | null, lastRequest}" }
+    post:
+      tags: [manager]
+      summary: Stage a signed .update stream in the boot layer's inactive slot
+      description: |
+        DISCUPD1, an Ed25519 signature over package.json, its length (u32 LE),
+        package.json, the listed files. Written beside the slot, checked by the
+        boot program, then swapped in. Needs X-Disc-Token, a fresh X-Disc-Request
+        and a confirmed running version.
+      requestBody:
+        required: true
+        content:
+          application/octet-stream: { schema: { type: string, format: binary } }
+      responses:
+        '200': { description: "{name, version, files, bytes}" }
+        '400': { description: The upload ended early }
+        '403': { description: Serial number or request ID missing, or another origin }
+        '409': { description: Not under the boot layer, no update keys, the running version not confirmed, or another change running }
+        '411': { description: No Content-Length, or a chunked body }
+        '413': { description: Larger than the bound }
+        '422': { description: Unsigned, another package, an unsafe path, a hash or length mismatch, or refused by the boot program }
+        '507': { description: No room in /usr/data for both versions and stock's reserve }
+  /api/update/activate:
+    post:
+      tags: [manager]
+      summary: Ask the boot layer to switch to the staged update, then exit
+      responses:
+        '202': { description: "{restarting: true, version}; the server exits for boot to apply the request" }
+        '403': { description: Serial number or request ID missing, or another origin }
+        '409': { description: Not under the boot layer, nothing staged, or another change running }
+        '422': { description: The boot program refused the staged update }
+  /api/update/rollback:
+    post:
+      tags: [manager]
+      summary: Ask the boot layer to return to the previous version, then exit
+      responses:
+        '202': { description: "{restarting: true, version}; the server exits for boot to apply the request" }
+        '403': { description: Serial number or request ID missing, or another origin }
+        '409': { description: Not under the boot layer, no previous version kept, or another change running }
   /api/apps/default:
     put:
       tags: [manager]
