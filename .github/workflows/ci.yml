@@ -25,7 +25,7 @@ jobs:
         run: bash scripts/test.sh
       - name: Shell and Python syntax
         run: |
-          bash -n scripts/guest-service.sh
+          for script in $(git ls-files '*.sh'); do bash -n "$script"; done
           python3 -m compileall -q scripts tests
   mips:
     # The gateway from the pinned toolchain, as a release builds it (soft-float, FPU-free, the
