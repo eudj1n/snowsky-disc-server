@@ -2035,7 +2035,7 @@ static int contract_route(struct mg_connection *c, server *s, const char *name) 
         const char *folder = from_card ? (kind == CARD_COMMANDS ? s->card_commands : s->card_catalog_dir) : s->catalog_dir;
         if (!effective || !disc_folder_open(from_card ? &s->webroot : NULL, folder, CATALOG_NAMES[kind], &asset))
             return error(c, 404, "No such catalog on this image\n");
-    } else if (!catalog_file(s, kind, &asset, &from_card)) return error(c, 404, "No such catalog on this image\n");
+    } else if (!catalog_file(s, CARD_COMPATIBILITY, &asset, &from_card)) return error(c, 404, "No such catalog on this image\n");
     char *json = asset.size <= DISC_CATALOG_MAX_JSON ? malloc(asset.size ? asset.size : 1) : NULL;
     size_t used = 0;
     while (json && used < asset.size) {
