@@ -233,8 +233,18 @@ started as the package under `disc-boot`, the integration checks on it.
   confirmed after 186 s and rolled back, stock's processes unchanged
   throughout. The soak's thread ceiling is now 16 (the manager's context
   adds three threads); the worker counts stay an open item below.
-- [ ] The two-package acceptance with diskOS's UI (snowsky-disc-boot,
-  stage 3).
+- [x] The two-package acceptance with diskOS's UI (snowsky-disc-boot,
+  stage 3; 2026-10-03, its `0405d60`): this repository's debug package
+  (`2026.10.03-181c5a8-debug`) installed with Play beside diskOS 1.2.0's
+  UI as the `ui` package on `boot-image-12d7c02`, confirmed, answering
+  `/api/health`, installing the player page through the manager and
+  serving it at `/`, its process untouched while stock's loop restarted
+  diskOS and the player, stopped in stock mode, and confirmed again when a
+  broken diskOS update gave way to the earlier one. The boot image now
+  guards the card from stock's player, which removes the mount point with
+  `rm -rf` after an unmount it does not check: while this gateway holds a
+  file on the card open (a track it streams), that would empty the card
+  (snowsky-disc-boot `docs/contract.md`, "The card guard").
 - [x] The boot without a network on the guest (2026-10-03):
   `integration.py --offline` powers the guest on with the emulator's
   `NETWORK=isolated` (`emulator.py power on --network isolated`, through
