@@ -657,7 +657,7 @@ paths:
         a fresh X-Disc-Request. The apps' port answers 405.
       responses:
         '200': { description: The apps listing, as GET /api/apps }
-        '400': { description: Not {"name": <name or null>} }
+        '400': { description: 'Not {"name": <name or null>}' }
         '403': { description: Serial number or request ID missing, or another origin }
         '404': { description: No such app installed }
         '409': { description: No settings file is configured }

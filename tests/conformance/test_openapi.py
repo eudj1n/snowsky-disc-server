@@ -1,6 +1,9 @@
 """The root OpenAPI document stays consistent with the served routes and the catalog schema."""
+import json
 from pathlib import Path
 import re
+import shutil
+import subprocess
 import sys
 import unittest
 
@@ -41,15 +44,26 @@ class OpenApiTests(unittest.TestCase):
         for code in ('1002', '1007', '1008', '1009', '1011'):
             self.assertIn(f"'{code}':", self.text)
 
-    def test_parses_when_a_yaml_library_is_available(self):
+    def test_document_parses_as_yaml(self):
+        """A whole parse, as viewers and generators read the file: PyYAML where it is installed,
+        else Ruby's standard parser (macOS and GitHub's runners have it). A brace in a flow
+        mapping's unquoted text once made the file unreadable while the patterns here matched."""
         try:
             import yaml
         except ImportError:
-            self.skipTest('PyYAML is not installed here; the document was validated with another parser')
-        document = yaml.safe_load(self.text)
-        self.assertEqual(sorted(document['paths']), sorted(LIVE + PLANNED))
-        self.assertEqual(document['info']['version'], '1.0.0')
-
+            yaml = None
+        if yaml is not None:
+            document = yaml.safe_load(self.text)
+            paths, version = list(document['paths']), document['info']['version']
+        elif shutil.which('ruby'):
+            script = 'require "json"; d = YAML.load_file(ARGV[0]); puts JSON.generate([d["paths"].keys, d["info"]["version"]])'
+            result = subprocess.run(['ruby', '-ryaml', '-e', script, str(ROOT/'openapi.yaml')], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr.strip())
+            paths, version = json.loads(result.stdout)
+        else:
+            self.skipTest('neither PyYAML nor Ruby is here to parse YAML')
+        self.assertEqual(sorted(paths), sorted(LIVE + PLANNED))
+        self.assertEqual(version, '1.0.0')
 
 if __name__ == '__main__':
     unittest.main()
