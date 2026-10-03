@@ -187,6 +187,15 @@ lists the card's apps (`{"default","apps":[{"name","version","default"}],
 which names no firmware profile (it may). The diagnostics' `page` is
 `{"source":"card"|"image"|"embedded","app","version"}` for the default app.
 
+The apps this server offers come by reference (owner, 2026-10-03): the
+package carries `catalog/apps.json` (from `apps/catalog.json`), a catalog
+in the form of snowsky-disc-boot's ("Catalogs" in its contract): each app's
+release zip by SHA-256 and size, its url once published, the server API it
+needs, its license, whether it is offered by default and where it was
+accepted. The player page (Disc Player) is the first entry and the default.
+The installer stages the default apps on the card's `Apps/`; the apps stay
+on the card, and contributed apps join the catalog as entries after review.
+
 The engineering switches live in `.disc/dev/` too since combined-008, each
 with its exact opt-in content as before: `.disc/dev/raw-records` (raw mode),
 `.disc/dev/usb-console` (the USB console of the engineering image) and

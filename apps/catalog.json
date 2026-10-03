@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "kind": "apps",
+  "description": "The apps this server offers for the card's Apps/ (docs/service-contract.md, \"Apps and catalogs\"), in the form of snowsky-disc-boot's catalogs: each names its release zip by SHA-256 and size, fetched from its url once published or taken from a local file with that digest. Apps live on the card; the package carries only this list.",
+  "entries": [
+    {
+      "name": "Disc Player",
+      "version": "2026.10.02-05a1422",
+      "api": 1,
+      "source": {"url": null, "sha256": "fd4b1ee1ea69e51b9f4bcd968f71cf59adc2319740d25a133a3a7d644703439f", "size": 594640},
+      "license": "MIT",
+      "default": true,
+      "notes": "snowsky-disc-player's release zip (npm run release), served at /",
+      "verified": {"date": "2026-10-03", "server": "2026.10.03-181c5a8-debug", "acceptance": "snowsky-disc-boot two_packages.py: installed through the manager and served at /"}
+    }
+  ]
+}

@@ -94,8 +94,11 @@ class PackageBuildTests(unittest.TestCase):
         manifest = json.loads((folder/'package.json').read_text())
         self.assertEqual((manifest['name'], manifest['version'], manifest['role'], manifest['entry'], manifest['arch']),
                          ('disc-server', '2026.10.02-test', 'service', 'bin/run', 'mips32el-linux-static'))
-        self.assertEqual(sorted(manifest['files']), ['bin/disc-service', 'bin/run', 'catalog/commands.json', 'catalog/compatibility.json',
-                                                     'catalog/hosted.json', 'catalog/queries.json', 'catalog/store.json', 'keys/update-keys'])
+        self.assertEqual(sorted(manifest['files']), ['bin/disc-service', 'bin/run', 'catalog/apps.json', 'catalog/commands.json',
+                                                     'catalog/compatibility.json', 'catalog/hosted.json', 'catalog/queries.json',
+                                                     'catalog/store.json', 'keys/update-keys'])
+        # The apps it offers, by reference only.
+        self.assertEqual((folder/'catalog/apps.json').read_bytes(), (ROOT/'apps/catalog.json').read_bytes())
         # The owner's release key, so that the package takes the updates it signs.
         self.assertEqual((folder/'keys/update-keys').read_bytes(), (ROOT/'keys/update-keys').read_bytes())
         self.package.check(Path(result['zip']).parent/'disc-server', 'service', PROFILE)

@@ -125,6 +125,11 @@ started as the package under `disc-boot`, the integration checks on it.
   SHA-256 vectors pass as MIPS builds under qemu-user.
 - [x] The default app (owner, 2026-10-02): no copy of an app in the package;
   apps live on the card and the manager installs them.
+- [x] The apps catalog (owner, 2026-10-03): `apps/catalog.json`, packaged as
+  `catalog/apps.json`, names the apps the server offers by their release
+  zip's digest (snowsky-disc-boot's catalog form, a cascade below its
+  packages catalog); the player page `2026.10.02-05a1422` is the default.
+  Apps stay on the card. `tests/conformance/test_apps_catalog.py`.
 - [x] Step 1, the gateway only as a package (2026-10-02): the card switch,
   the supervisor (`--supervise`, `--restart-log`), the image identity file
   (`--image-info`), the image copy of an app (`--image-app`) and the embedded

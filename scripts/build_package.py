@@ -34,6 +34,7 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
+APPS_CATALOG = ROOT/'apps/catalog.json'
 sys.path.insert(0, str(ROOT/'scripts'))
 from firmware_profile import (load_profile, load_usb_profile, load_os_profile, os_service_args, fingerprint,  # noqa: E402
                               apps, card_catalog, raw_switch, database, trash, internal_lists, external_lists)
@@ -169,6 +170,9 @@ def build(binary=None, output=None, version=None, engineering=False, profile_ver
     for name, data in app_bundle.catalog_files(profile).items():
         (folder/'catalog'/name).write_bytes(data)
         (folder/'catalog'/name).chmod(0o644)
+    # The apps this server offers, by reference: the installer stages them on the card.
+    shutil.copyfile(APPS_CATALOG, folder/'catalog/apps.json')
+    (folder/'catalog/apps.json').chmod(0o644)
     manifest = package.describe(folder, NAME, version, 'service', 'bin/run', ready=30, profiles=[profile['version']], arch=arch)
     package.check(folder, 'service', profile['version'], arch=arch)
     archive = package.zip_package(folder, output/f'{NAME}-{version}.zip')
