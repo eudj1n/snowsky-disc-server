@@ -241,12 +241,13 @@ started as the package under `disc-boot`, the integration checks on it.
   serving it at `/`, its process untouched while stock's loop restarted
   diskOS and the player, stopped in stock mode, and confirmed again when a
   broken diskOS update gave way to the earlier one. diskOS's UI itself
-  never got past its start on the guest (the emulator drops `argv[0]`;
-  snowsky-disc-boot's plan, corrected the same day); this server's results
-  stand. The boot image now guards the card from stock's player, which removes the mount point with
-  `rm -rf` after an unmount it does not check: while this gateway holds a
-  file on the card open (a track it streams), that would empty the card
-  (snowsky-disc-boot `docs/contract.md`, "The card guard").
+  never got past its start on the guest (the emulator drops `argv[0]`,
+  snowsky-disc-qemu #52; snowsky-disc-boot's plan, corrected the same day);
+  this server's results stand. The boot image now guards the card from
+  stock's player, which removes the mount point with `rm -rf` after an
+  unmount it does not check: while this gateway holds a file on the card
+  open (a track it streams), that would empty the card (snowsky-disc-boot
+  `docs/contract.md`, "The card guard").
 - [x] The boot without a network on the guest (2026-10-03):
   `integration.py --offline` powers the guest on with the emulator's
   `NETWORK=isolated` (`emulator.py power on --network isolated`, through
