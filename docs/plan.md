@@ -269,6 +269,24 @@ started as the package under `disc-boot`, the integration checks on it.
   finally. Not covered: a Wi-Fi radio, an address change during a
   connection, mDNS.
 
+## Stage 2 — GitHub, CI and releases (owner, 2026-10-03)
+
+- [x] Versions after FiiO's firmware, numbered here on their own
+  (`2.57.1`, tag `v2.57.1`); debug packages and the signed `.update` stay
+  local; a release is a draft the owner publishes, its package rebuilt by
+  the CI and required to be the recorded, guest-accepted one (owner,
+  2026-10-03).
+- [x] The build id from the gateway's sources' last commit; the
+  toolchain's Debian base pinned by digest; `scripts/release.py` (build,
+  record, check), `tests/conformance/test_release.py` (3); `ci.yml`'s
+  `mips` job and `release.yml` with snowsky-disc-boot at
+  `scripts/boot-revision`.
+- [ ] The first runs on GitHub (after the owner pushes; snowsky-disc-boot
+  first, since the workflows check it out).
+- [ ] `2.57.1`: the release package accepted on the guest with the boot
+  layer, recorded; the tag, the draft, the owner's publication; then
+  snowsky-disc-boot's catalog names it.
+
 ## Carried over
 
 - [x] The trash refuses the card's `Apps` folder and what is in it, as it

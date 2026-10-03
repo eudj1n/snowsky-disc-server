@@ -77,6 +77,36 @@ Output: `build/mips/disc-service` and `framing-test`, static MIPS
 little-endian soft-float. Apps live on the card; the binary carries no page
 (`apps/probe` is a test app the guest checks install on the card).
 
+The toolchain's recipe pins the Debian base by digest and the musl.cc compiler by SHA-256,
+and the gateway carries as its build id the last commit that changed its sources
+(`device/src`, `device/vendor`, `device/manager`, `device/Makefile`,
+`scripts/embed-manager.py`), so the same sources give the same bytes in any later commit and
+on GitHub's runners.
+
+## Releases
+
+A release is named after the FiiO firmware it is for and our number for it, counted apart from
+the boot layer's: `2.57.1` is the server's first for FiiO's 2.57, tagged `v2.57.1` (owner,
+2026-10-03). `scripts/release.py` builds `disc-server-<version>.zip` (the release variant,
+`build/mips/disc-service-release`) and `SHA256SUMS`, packaged with snowsky-disc-boot's
+`package.py` (`DISC_BOOT_DIR`); the workflows check that repository out at
+`scripts/boot-revision`. Debug packages and the signed `.update` file stay on the owner's
+computer.
+
+```sh
+bash scripts/build.sh mips
+python3 scripts/release.py build --version 2.57.1 --output work/release-2.57.1/dist
+# the guest accepts the package (snowsky-disc-boot's two_packages.py, install.py --guest), then:
+python3 scripts/release.py record --version 2.57.1 --dist work/release-2.57.1/dist --accepted "<what ran>"
+```
+
+`record` writes `releases/<version>.json` once. Pushing the tag `v<version>` runs
+`.github/workflows/release.yml`: the synthetic tests, the toolchain from its recipe, the MIPS
+build, `release.py build` and `check` (the package must be the recorded one), then a draft
+release the owner publishes; snowsky-disc-boot's catalog then names the package by its address
+and digest. `.github/workflows/ci.yml` builds the same package on every push as a 14-day
+artifact (`<firmware>.0-ci.<commit>`, never a release). No secrets; actions pinned by commit.
+
 ## The service package
 
 On the player the gateway is the boot layer's `service` package
