@@ -281,8 +281,14 @@ started as the package under `disc-boot`, the integration checks on it.
   record, check), `tests/conformance/test_release.py` (3); `ci.yml`'s
   `mips` job and `release.yml` with snowsky-disc-boot at
   `scripts/boot-revision`.
-- [ ] The first runs on GitHub (after the owner pushes; snowsky-disc-boot
-  first, since the workflows check it out).
+- [x] The first runs on GitHub (2026-10-04, pushed by the owner's go-ahead
+  over SSH, snowsky-disc-boot first): run `37148827743` at `d99baae` passes
+  both jobs; the `mips` job's `disc-service-release` at `274b23d` is
+  `f8a556cd…`, as a local build of the same commit. The first runs found
+  GCC 13's array-bounds false positive in the contract route, the syntax
+  step's removed `guest-service.sh`, and musl.cc refusing GitHub's runners
+  (the toolchain falls back to the Internet Archive's capture of the same
+  file, same SHA-256).
 - [ ] `2.57.1`: the release package accepted on the guest with the boot
   layer, recorded; the tag, the draft, the owner's publication; then
   snowsky-disc-boot's catalog names it.
