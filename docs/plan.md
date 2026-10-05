@@ -289,9 +289,17 @@ started as the package under `disc-boot`, the integration checks on it.
   step's removed `guest-service.sh`, and musl.cc refusing GitHub's runners
   (the toolchain falls back to the Internet Archive's capture of the same
   file, same SHA-256).
-- [ ] `2.57.1`: the release package accepted on the guest with the boot
-  layer, recorded; the tag, the draft, the owner's publication; then
-  snowsky-disc-boot's catalog names it.
+- [x] `2.57.1` recorded (2026-10-05, `releases/2.57.1.json`, build
+  `274b23d35949`, `disc-server-2.57.1.zip` `caca82e8…`): accepted on
+  snowsky-disc-boot's guest at emulator `f1d5e33` with boot's release
+  candidate 2.57.2 (`two_packages.py` 6 of 6 beside diskOS and the page;
+  `install.py --guest`: installed by Play, confirmed, the page staged).
+  Its `apps/catalog.json` names the player page by its release address and
+  the zip its release workflow packs (`0758aa1e…`); `scripts/boot-revision`
+  is boot 2.x `5353a5e`. snowsky-disc-boot's catalog names it as a default.
+- [ ] The tag `v2.57.1`, after the third write stayed up on the player
+  (owner, 2026-10-05), with boot's `v2.57.2` and the page's tag; the draft
+  rebuilt by CI and compared with the record, published by the owner.
 
 ## Carried over
 

@@ -7,11 +7,19 @@
       "name": "Disc Player",
       "version": "2026.10.02-05a1422",
       "api": 1,
-      "source": {"url": null, "sha256": "fd4b1ee1ea69e51b9f4bcd968f71cf59adc2319740d25a133a3a7d644703439f", "size": 594640},
+      "source": {
+        "url": "https://github.com/eudj1n/snowsky-disc-player/releases/download/v2026.10.02-05a1422/disc-player-2026.10.02-05a1422.zip",
+        "sha256": "0758aa1ea1f9a9bb91f29c76cf46245060bc113a84a89802ada2f5e963895914",
+        "size": 595694
+      },
       "license": "MIT",
       "default": true,
-      "notes": "snowsky-disc-player's release zip (npm run release), served at /",
-      "verified": {"date": "2026-10-03", "server": "2026.10.03-181c5a8-debug", "acceptance": "snowsky-disc-boot two_packages.py: installed through the manager and served at /"}
+      "notes": "snowsky-disc-player's release v2026.10.02-05a1422 as its release workflow packs it (Node 24); the same files as the 2026-10-02 local build, gzip twins compressed by Node 24's zlib; served at /",
+      "verified": {
+        "date": "2026-10-03",
+        "server": "2026.10.03-181c5a8-debug",
+        "acceptance": "snowsky-disc-boot two_packages.py: installed through the manager and served at /"
+      }
     }
   ]
 }
