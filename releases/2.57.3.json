@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "version": "2.57.3",
+  "firmware": "2.57",
+  "tag": "v2.57.3",
+  "buildId": "76e87d73ae57",
+  "files": {
+    "disc-server-2.57.3.zip": {
+      "bytes": 838192,
+      "sha256": "5a3e63a82b1a8afea2a9b1e2a87267d41792833b0156f0838851ca31ed23df07"
+    }
+  },
+  "accepted": "on snowsky-disc-boot's guest at emulator f1d5e33 with FiiO 2.57 and the image the owner's player runs (boot ef056a6, c460b12e), 2026-10-07: integration.py --about; 2.57.2 installed by Play, then this package's signed .update through the manager's API, confirmed (twice), stock untouched; 2.57.3 installed by Play, then in Chromium on its own manager page a switch to 2.57.3-check (the same code, signed) and back: the page reloaded itself once each version was confirmed and said so. On the owner's player, 2026-10-07: 2.57.2 to 2.57.3 through the manager, confirmed (the owner's report)",
+  "urls": {
+    "disc-server-2.57.3.zip": "https://github.com/eudj1n/snowsky-disc-server/releases/download/v2.57.3/disc-server-2.57.3.zip"
+  }
+}

@@ -389,9 +389,11 @@ started as the package under `disc-boot`, the integration checks on it.
   return reloaded after 5 s (a return is confirmed at once) and said so;
   not again after a manual reload. 2.57.2's page, which runs this update,
   does not reload itself yet: once more by hand.
-- [ ] The update to 2.57.3 on the player, then `releases/2.57.3.json`.
-- [ ] The tag `v2.57.2` with the other tags; snowsky-disc-boot's catalog
-  names this package as the default.
+- [x] The update to 2.57.3 on the owner's player (2026-10-07, the owner's
+  report): confirmed. `releases/2.57.3.json`: build `76e87d73ae57`,
+  `disc-server-2.57.3.zip` `5a3e63a8…` (838,192 bytes).
+- [ ] The tags `v2.57.2` and `v2.57.3` with the other tags; snowsky-disc-boot's
+  catalog names 2.57.3 as the default.
 
 ## Carried over
 
