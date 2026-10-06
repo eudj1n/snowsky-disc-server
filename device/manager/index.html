@@ -11,6 +11,10 @@
 <body>
 <main>
   <header>
+    <div class="languages" id="languages" role="group" aria-label="Language">
+      <button type="button" data-language="en" lang="en" aria-pressed="true">EN</button>
+      <button type="button" data-language="ru" lang="ru" aria-pressed="false">RU</button>
+    </div>
     <h1 data-text="title">Apps</h1>
     <p class="muted" id="server"></p>
   </header>
@@ -32,6 +36,11 @@
       <span id="progress-text"></span>
     </div>
     <p class="status" id="install-status" role="status" aria-live="polite"></p>
+  </section>
+  <section aria-labelledby="software-title">
+    <h2 id="software-title" data-text="software">Player software</h2>
+    <p class="muted" data-text="softwareHelp">Installed in the player itself by the boot layer. The server updates below; the rest comes with the installer.</p>
+    <ul id="software"></ul>
   </section>
   <section aria-labelledby="update-title">
     <h2 id="update-title" data-text="updateTitle">Server updates</h2>

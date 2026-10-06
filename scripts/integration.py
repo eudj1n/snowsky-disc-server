@@ -47,16 +47,20 @@ subprocess.run(['docker','exec',container,'python3','-B','/platform/tests/integr
 subprocess.run([sys.executable,str(ROOT/'tests/integration/native_smoke.py')],check=True)
 if args.gateway or args.store or args.trash or args.cue or args.m3u or args.queue_research or args.lists or args.about:
     # combined-009: the reviewed catalogs come with the (guest) image; the disposable card needs an app at /
-    # with the reviewed origins for the page's policy. The probe goes there unless an app already is
-    # (the page's acceptance installs Disc Player itself); the guest's SN is the credential.
+    # with the reviewed origins for the page's policy. A one-page test app goes there unless an app already
+    # is (the page's acceptance installs Disc Player itself); the guest's SN is the credential.
     subprocess.run(['docker','exec','-i',container,'python3','-','/tmp/sdcard'],input=b"""
 import pathlib, shutil, subprocess, sys
 card = pathlib.Path(sys.argv[1])
 if not (card/'Apps'/'Disc Player'/'index.html').is_file():
-    out = pathlib.Path('/work/probe-app.zip')
+    source, out = pathlib.Path('/work/test-app'), pathlib.Path('/work/test-app.zip')
+    shutil.rmtree(source, ignore_errors=True)
     out.unlink(missing_ok=True)
-    subprocess.run(['python3', '/platform/scripts/app_bundle.py', 'zip', '--source', '/platform/apps/probe', '--output', str(out),
-                    '--origins'], check=True, stdout=subprocess.DEVNULL)
+    source.mkdir()
+    (source/'index.html').write_text('<!doctype html><meta charset="utf-8"><title>Test app</title><p>Test app</p>\\n')
+    subprocess.run(['python3', '/platform/scripts/app_bundle.py', 'zip', '--source', str(source), '--output', str(out),
+                    '--version', 'test', '--homepage', 'https://github.com/eudj1n/snowsky-disc-server', '--origins'],
+                   check=True, stdout=subprocess.DEVNULL)
     subprocess.run(['python3', '/platform/scripts/app_bundle.py', 'install', '--app', str(out), '--card', str(card),
                     '--confirm-card-write'], check=True, stdout=subprocess.DEVNULL)
 """,check=True)

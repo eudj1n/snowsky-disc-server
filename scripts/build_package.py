@@ -42,6 +42,8 @@ import app_bundle  # noqa: E402
 import update_file  # noqa: E402
 
 NAME = 'disc-server'
+# The project's page in package.json (snowsky-disc-boot's optional homepage), as /api/about names it.
+HOMEPAGE = 'https://github.com/eudj1n/snowsky-disc-server'
 UPDATE_KEYS = ROOT/'keys/update-keys'
 CARD = '$DISC_BOOT_CARD'
 SLOT = '$DISC_BOOT_SLOT'
@@ -173,7 +175,8 @@ def build(binary=None, output=None, version=None, engineering=False, profile_ver
     # The apps this server offers, by reference: the installer stages them on the card.
     shutil.copyfile(APPS_CATALOG, folder/'catalog/apps.json')
     (folder/'catalog/apps.json').chmod(0o644)
-    manifest = package.describe(folder, NAME, version, 'service', 'bin/run', ready=30, profiles=[profile['version']], arch=arch)
+    manifest = package.describe(folder, NAME, version, 'service', 'bin/run', ready=30, profiles=[profile['version']], arch=arch,
+                                homepage=HOMEPAGE)
     package.check(folder, 'service', profile['version'], arch=arch)
     archive = package.zip_package(folder, output/f'{NAME}-{version}.zip')
     signed = update_file.pack(folder, sign_key, output/f'{NAME}-{version}.update') if sign_key else None

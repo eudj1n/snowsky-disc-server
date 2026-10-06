@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "version": "2.57.2",
+  "firmware": "2.57",
+  "tag": "v2.57.2",
+  "buildId": "9e41a327da72",
+  "files": {
+    "disc-server-2.57.2.zip": {
+      "bytes": 837731,
+      "sha256": "6066637fc774487812f22023add896d89c1ac7c1465276ae173f1f6b774d3eb3"
+    }
+  },
+  "accepted": "on snowsky-disc-boot's guest at emulator f1d5e33 with FiiO 2.57, 2026-10-06. This build: integration.py --about, then 2.57.1 installed by Play and this package's signed .update through the manager (confirmed, returned to 2.57.1, switched again, stock untouched), on boot 2.x ef056a6's image (c460b12e, the status links) and on the image the owner's player runs (0da9a217, boot 2.57.2). The build before it (4cfbbe974aeb; this one adds stock's row without ui.json to the manager's page): two_packages.py 6 of 6 beside diskOS 1.2.0's UI and the player page 2026.10.02-05a1422, install.py --guest, manager_guest.py. On the owner's player, 2026-10-06: 2.57.1 to 2.57.2 through the manager, confirmed (the owner's report)",
+  "urls": {
+    "disc-server-2.57.2.zip": "https://github.com/eudj1n/snowsky-disc-server/releases/download/v2.57.2/disc-server-2.57.2.zip"
+  }
+}

@@ -18,7 +18,9 @@ const TEXT = {
     needSerial: 'Enter the serial number first.', wrongSerial: 'The serial number was not accepted. After several wrong tries the player waits a while.',
     busy: 'Another change is running.', noCard: 'The card is not available in the player.',
     saved: 'Saved.', failed: 'Not done: {why}', unreachable: 'The server does not answer.',
-    server: 'Server', boot: 'Boot layer', package: 'Package', ports: 'Ports', card: 'Card', cardIn: 'in the player', cardOut: 'not available',
+    server: 'Server', build: 'build {build}', language: 'Language', project: 'Project page',
+    software: 'Player software', softwareHelp: 'Installed in the player itself by the boot layer. The server updates below; the rest comes with the installer.',
+    stockUi: "Player's own interface", thisBoot: 'running', boot: 'Boot layer', ports: 'Ports', card: 'Card', cardIn: 'in the player', cardOut: 'not available',
     portsValue: 'apps {apps}, manager {manager}', notBoot: 'not under the boot layer', confirmed: 'confirmed', tentative: 'not confirmed yet',
     updateTitle: 'Server updates',
     updateHelp: 'A server release as a .update file. It is checked as it arrives and kept beside the running version; switching is a separate step that restarts the server, not the music. Uploading replaces the version kept for a return.',
@@ -52,7 +54,9 @@ const TEXT = {
     needSerial: 'Сначала введите серийный номер.', wrongSerial: 'Серийный номер не принят. После нескольких ошибок плеер какое-то время не принимает попытки.',
     busy: 'Уже идёт другое изменение.', noCard: 'Карта недоступна в плеере.',
     saved: 'Сохранено.', failed: 'Не выполнено: {why}', unreachable: 'Сервер не отвечает.',
-    server: 'Сервер', boot: 'Слой загрузки', package: 'Пакет', ports: 'Порты', card: 'Карта', cardIn: 'в плеере', cardOut: 'недоступна',
+    server: 'Сервер', build: 'сборка {build}', language: 'Язык', project: 'Страница проекта',
+    software: 'Программы плеера', softwareHelp: 'Установлены в память плеера слоем загрузки. Сервер обновляется ниже, остальное — установщиком.',
+    stockUi: 'Штатный интерфейс', thisBoot: 'работает', boot: 'Слой загрузки', ports: 'Порты', card: 'Карта', cardIn: 'в плеере', cardOut: 'недоступна',
     portsValue: 'приложения {apps}, менеджер {manager}', notBoot: 'не под слоем загрузки', confirmed: 'подтверждён', tentative: 'ещё не подтверждён',
     updateTitle: 'Обновления сервера',
     updateHelp: 'Выпуск сервера в виде файла .update. Он проверяется по мере загрузки и хранится рядом с работающей версией; переключение — отдельный шаг, который перезапускает сервер, но не музыку. Загрузка заменяет версию, сохранённую для возврата.',
@@ -70,13 +74,33 @@ const TEXT = {
     updateRefused: 'Обновление не принято: {why}', updateNoRoom: 'На плеере не хватает места для обновления. Ничего не изменено.',
   },
 }
-const ru = (navigator.language || '').toLowerCase().startsWith('ru')
-const t = (key, values = {}) => (ru ? TEXT.ru : TEXT.en)[key].replace(/\{(\w+)\}/g, (_, name) => values[name] ?? '')
-document.documentElement.lang = ru ? 'ru' : 'en'
-document.title = `DISC · ${t('title')}`
-for (const element of document.querySelectorAll('[data-text]')) element.textContent = t(element.dataset.text)
+// The language follows the player page's rule (owner, 2026-10-06): the choice made on this page,
+// else the player's own language when the page has its words, else English; never the browser's.
+const LANGUAGE_KEY = 'disc-manager.language'
+let language = 'en', chosen = false
+try {
+  const saved = localStorage.getItem(LANGUAGE_KEY)
+  if (TEXT[saved]) { language = saved; chosen = true }
+} catch { /* storage may be unavailable */ }
+const t = (key, values = {}) => TEXT[language][key].replace(/\{(\w+)\}/g, (_, name) => values[name] ?? '')
 
 const $ = (id) => document.getElementById(id)
+function applyLanguage() {
+  document.documentElement.lang = language
+  document.title = `DISC · ${t('title')}`
+  for (const element of document.querySelectorAll('[data-text]')) element.textContent = t(element.dataset.text)
+  $('languages').setAttribute('aria-label', t('language'))
+  for (const element of document.querySelectorAll('[data-language]')) element.setAttribute('aria-pressed', `${element.dataset.language === language}`)
+  if (about) { renderFacts(); renderSoftware() }
+  if (apps) renderApps(apps)
+  renderUpdate()
+}
+function chooseLanguage(value) {
+  chosen = true; language = value
+  try { localStorage.setItem(LANGUAGE_KEY, value) } catch { /* storage may be unavailable */ }
+  applyLanguage()
+}
+for (const element of document.querySelectorAll('[data-language]')) element.addEventListener('click', () => chooseLanguage(element.dataset.language))
 // Each section answers in its own line: the list's changes under the list, an installation under its form.
 const say = (text, bad = false, where = 'apps-status') => {
   const line = $(where)
@@ -84,10 +108,10 @@ const say = (text, bad = false, where = 'apps-status') => {
   line.className = bad ? 'status bad' : 'status'
 }
 const size = (bytes) => {
-  const units = ru ? ['Б', 'КБ', 'МБ'] : ['B', 'KB', 'MB']
+  const units = language === 'ru' ? ['Б', 'КБ', 'МБ'] : ['B', 'KB', 'MB']
   let value = bytes, unit = 0
   while (value >= 1000 && unit < units.length - 1) { value /= 1000; unit++ }
-  return `${value.toLocaleString(ru ? 'ru' : 'en', { maximumFractionDigits: unit ? 1 : 0 })} ${units[unit]}`
+  return `${value.toLocaleString(language, { maximumFractionDigits: unit ? 1 : 0 })} ${units[unit]}`
 }
 
 const SERIAL_KEY = 'disc-manager.serial'
@@ -165,29 +189,78 @@ async function change(method, path, body, where = 'apps-status') {
   } finally { setBusy(false) }
 }
 
-let about = null
+let about = null, apps = null
 const appsAddress = (path) => `${location.protocol}//${location.hostname}:${about?.ports?.apps ?? 7870}${path}`
 
-function fact(list, term, value) {
+function fact(list, term, value, homepage) {
   const dt = document.createElement('dt'); dt.textContent = term
   const dd = document.createElement('dd'); dd.textContent = value
+  addLink(dd, homepage)
   list.append(dt, dd)
+}
+// A project's public page as its manifest names it: GitHub by name, any other site by its host.
+// Only a plain https link becomes one (the server lists no other from app.json; this holds for the
+// boot layer's status too).
+const BOOT_HOMEPAGE = 'https://github.com/eudj1n/snowsky-disc-boot'
+const PLAIN_HTTPS = /^https:\/\/[A-Za-z0-9.-]+(\/[A-Za-z0-9._~%+@:/-]*)?$/
+function addLink(parent, homepage) {
+  if (typeof homepage === 'string' && homepage.length <= 200 && PLAIN_HTTPS.test(homepage)) parent.append(' · ', projectLink(homepage))
+}
+function projectLink(homepage) {
+  const link = document.createElement('a')
+  link.href = homepage; link.target = '_blank'; link.rel = 'noopener noreferrer'
+  const host = new URL(homepage).hostname
+  link.textContent = host === 'github.com' ? 'GitHub' : host
+  link.title = t('project')
+  return link
 }
 function renderFacts() {
   const list = $('facts'); list.replaceChildren()
-  const service = about.service
-  $('server').textContent = `${service.name} ${service.version} · ${service.build}`
-  fact(list, t('server'), `${service.version} (${service.build})`)
-  const boot = about.boot
+  // The package the boot layer runs names the server; the binary itself knows only its build.
+  const service = about.service, boot = about.boot, role = boot?.service
+  $('server').replaceChildren(role?.name ? [role.name, role.version].filter(Boolean).join(' ') : t('build', { build: service.build }))
+  fact(list, t('server'), t('build', { build: service.build }))
   if (!boot) fact(list, t('boot'), t('notBoot'))
   else {
     const decision = boot.decision
-    if (decision) fact(list, t('boot'), `${decision.mode} · ${decision.reason}`)
-    const role = boot.service
-    if (role) fact(list, t('package'), [role.name, role.version, role.slot, role.confirmed ? t('confirmed') : t('tentative')].filter(Boolean).join(' · '))
+    if (decision) fact(list, t('boot'), `${decision.mode} · ${decision.reason}`, BOOT_HOMEPAGE)
   }
   fact(list, t('ports'), t('portsValue', about.ports))
   fact(list, t('card'), about.card?.owned ? t('cardIn') : t('cardOut'))
+}
+// The boot layer's packages in the player's memory, shown, not managed here (the server's own update
+// is its section): this server, the menu, the interfaces installed beside stock's own (diskOS and the
+// like) and which one this boot runs. A project link where the package or its status names one.
+function renderSoftware() {
+  const list = $('software'); list.replaceChildren()
+  const boot = about.boot, role = boot?.service
+  const rows = [{
+    name: role?.name || 'disc-server', version: role?.version, homepage: about.service.homepage,
+    marks: [role ? (role.confirmed ? t('confirmed') : t('tentative')) : t('notBoot')],
+  }]
+  if (boot?.menu?.name) rows.push({ name: boot.menu.name, version: boot.menu.version, homepage: boot.menu.homepage, marks: [] })
+  // Stock's own interface is always there; without an interface of ours (no ui.json) it is the one that runs.
+  if (boot) {
+    const running = boot.ui ? boot.ui.choice?.ui : 'stock'
+    for (const entry of [...(boot.ui?.installed ?? []), { name: 'stock', confirmed: true }])
+      rows.push({
+        name: entry.name === 'stock' ? t('stockUi') : entry.name, version: entry.version, homepage: entry.homepage,
+        marks: [entry.name === running && t('thisBoot'), !entry.confirmed && t('tentative')].filter(Boolean),
+      })
+  }
+  for (const row of rows) {
+    const item = document.createElement('li')
+    const name = document.createElement('span'); name.className = 'name'; name.textContent = row.name
+    const version = document.createElement('span'); version.className = 'version'; version.textContent = row.version ?? ''
+    item.append(name, version)
+    for (const text of row.marks) { const mark = document.createElement('span'); mark.className = 'mark'; mark.textContent = text; item.append(mark) }
+    if (typeof row.homepage === 'string' && PLAIN_HTTPS.test(row.homepage)) {
+      const actions = document.createElement('span'); actions.className = 'actions'
+      actions.append(projectLink(row.homepage))
+      item.append(actions)
+    }
+    list.append(item)
+  }
 }
 function button(label, action, kind = '', settled = false) {
   const element = document.createElement('button')
@@ -199,7 +272,8 @@ function button(label, action, kind = '', settled = false) {
   element.addEventListener('click', action)
   return element
 }
-function renderApps(apps) {
+function renderApps(next) {
+  apps = next
   const list = $('apps'); list.replaceChildren()
   const note = $('apps-note')
   note.replaceChildren(!apps.apps.length ? t('none') : apps.default ? t('servedAt', { app: apps.default }) : t('noDefault'))
@@ -216,6 +290,7 @@ function renderApps(apps) {
     const actions = document.createElement('span'); actions.className = 'actions'
     const open = document.createElement('a'); open.textContent = t('open'); open.href = appsAddress(`/apps/${encodeURIComponent(app.name)}/`)
     actions.append(open)
+    if (app.homepage && PLAIN_HTTPS.test(app.homepage)) actions.append(projectLink(app.homepage))
     if (apps.chosen === app.name) actions.append(button(t('unset'), () => choose(null)))
     else actions.append(button(t('makeDefault'), () => choose(app.name), '', app.default))
     actions.append(button(t('remove'), () => ask(item, actions, app.name), 'quiet'))
@@ -373,9 +448,12 @@ async function switchTo(action, version) {
 
 async function load() {
   try {
-    const [nextAbout, apps, nextUpdate] = await Promise.all([get('/api/about'), get('/api/apps'), get('/api/update')])
+    const [nextAbout, nextApps, nextUpdate] = await Promise.all([get('/api/about'), get('/api/apps'), get('/api/update')])
     about = nextAbout; update = nextUpdate
-    renderFacts(); renderApps(apps); renderUpdate()
+    const player = about.player?.language
+    if (!chosen && TEXT[player] && player !== language) { language = player; applyLanguage() }
+    renderFacts(); renderSoftware(); renderApps(nextApps); renderUpdate()
   } catch { say(t('unreachable'), true) }
 }
+applyLanguage()
 load()

@@ -22,7 +22,7 @@ for the apps and the card's catalog override.
 | --- | --- |
 | `device/src/` | The gateway (`disc-service`) |
 | `device/vendor/` | Pinned CivetWeb, jsmn, miniz, Monocypher and SQLite sources with licenses |
-| `apps/probe/` | Embedded RU/EN diagnostic browser page |
+| `apps/catalog.json` | The apps the installer offers (the player page by its release address) |
 | `firmware/` | Reviewed profiles and catalogs: commands, queries, store, hosted, origins, OS facts, card layout |
 | `scripts/` | Builds, the package (`build_package.py`), tests, catalog tools, card tools (`app_bundle.py`, `card_move.py`), emulator orchestration |
 | `tests/conformance/` | Synthetic network, protocol, catalog and profile tests |
@@ -31,7 +31,7 @@ for the apps and the card's catalog override.
 
 ## Build and test without firmware
 
-Requirements: C11 compiler, make, Python 3, Node.js with `node:test`. No npm
+Requirements: C11 compiler, make, Python 3, Node.js (a syntax check of the manager's script). No npm
 dependencies. Network tests bind only ephemeral loopback ports.
 
 ```sh
@@ -74,8 +74,8 @@ hard-float build on its first WebSocket ([corrected analysis](combined-browser-o
 qemu-user never reaches that path. `scripts/build.sh mips` fails unless
 `disc-service` reports `FP ABI: Soft float` and contains no FPU instructions.
 Output: `build/mips/disc-service` and `framing-test`, static MIPS
-little-endian soft-float. Apps live on the card; the binary carries no page
-(`apps/probe` is a test app the guest checks install on the card).
+little-endian soft-float. Apps live on the card; the binary carries only the manager's page (the guest
+installs a generated one-page test app on its card when no app is there).
 
 The toolchain's recipe pins the Debian base by digest and the musl.cc compiler by SHA-256,
 and the gateway carries as its build id the last commit that changed its sources

@@ -42,9 +42,9 @@ projects. The 2026-09-25 concept revision is recorded in the plan (snowsky-disc-
 
 ## Ownership
 
-`device/` owns native code and build support; `apps/probe/` owns the diagnostic
-page; `tests/` owns conformance and integration orchestration; `docs/` owns plans
-and evidence. Add packages/controller and packages/library when migration begins.
+`device/` owns native code, the manager's page and build support; `apps/`
+owns the catalog of apps the installer offers; `tests/` owns conformance and
+integration orchestration; `docs/` owns plans and evidence. Add packages/controller and packages/library when migration begins.
 
 ## Emulator gate acceptance
 

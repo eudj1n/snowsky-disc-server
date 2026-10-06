@@ -301,6 +301,78 @@ started as the package under `disc-boot`, the integration checks on it.
   (owner, 2026-10-05), with boot's `v2.57.2` and the page's tag; the draft
   rebuilt by CI and compared with the record, published by the owner.
 
+## Stage 3 — 2.57.2, the manager before the public releases (owner, 2026-10-06)
+
+- [x] The manager's language by the player page's rule: the choice made with
+  the header's EN/RU switch (kept in the browser), else the player's own
+  language, else English, never the browser's. `/api/about` adds
+  `player.language` (stock's SYSCONFIG.LANGUAGE through the reviewed
+  `system_settings` query, as the page's code). `test_gateway` (the
+  fixture's 9 is `ru`, 100 and a missing settings database are null).
+- [x] The header names the package the boot layer runs (`disc-server
+  2.57.2`), not the gateway's internal `disc-native-probe 0.9.0`, which
+  `/api/status`, `/api/about` and `--version` keep for their clients; the
+  build stays under "System".
+- [x] Project links before the public releases: `app.json` may name the
+  app's `homepage` (`app_bundle.py zip --homepage`, the page's
+  `pack-app.mjs` the same bytes, snowsky-disc-player `3712e3a`), a plain
+  https address of at most 200 bytes, the rule of snowsky-disc-boot's
+  `package.json` (`17a41e9`, branch `homepage-links`); `/api/apps` and
+  `/api/about` list it only in that form and the server's own
+  (`service.homepage`). `test_gateway`, `test_publisher`.
+- [x] "Player software" apart from the apps (owner, 2026-10-06): this
+  server, the menu, the installed interfaces (diskOS) beside stock's own and
+  the one this boot runs, from the boot layer's `ui.json` and `menu.json`,
+  which `/api/about` now passes; shown, not changed here. Screenshots of the
+  host gateway light and dark, 1100 and 390 px wide: no horizontal scroll,
+  no console error.
+- [x] `apps/probe` is gone (the owner: not needed): the guest installs a
+  generated one-page test app when its card has none; `scripts/test.sh`
+  checks the manager's script syntax instead of the probe's protocol tests.
+- [x] The server's `package.json` names its homepage
+  (`build_package.HOMEPAGE`, `test_package_build`); `scripts/boot-revision`
+  pins snowsky-disc-boot 2.x `c1a4903` (its PR #5), whose `package.py` writes it.
+- [ ] The menu's and the interfaces' links: their packages carry
+  `homepage` from their next builds; the boot layer's status names it from
+  its next boot program (`ui.json`'s `installed`, the roles' status;
+  snowsky-disc-boot branch `status-homepage`), which the gateway now reads up
+  to 8 KiB a file.
+- [ ] After the release (owner, 2026-10-06): "Check for updates" in
+  "Player software", on demand only: the browser (the gateway has no TLS)
+  asks GitHub's API for each package's releases (anonymous, CORS, 60 an hour
+  an address; the manager's policy adds `connect-src https://api.github.com`)
+  and compares within the same firmware line, not `latest`. One-step
+  installation would need the signed `.update` among a release's files.
+- [x] Guest acceptance (2026-10-06, emulator `f1d5e33`, snowsky-disc-boot's
+  image `c460b12e…` with the status links): `two_packages.py` 6 of 6 and
+  `install.py --guest` with this server (build `4cfbbe974aeb`);
+  `manager_guest.py`; the release path as the owner will take it: 2.57.1
+  installed by Play and confirmed, the signed `.update` (the owner's release
+  key) uploaded through the manager in 0.2 s, ready 6 s and confirmed 184 s
+  after the switch, returned to 2.57.1 and switched again, stock's `mq_ui`
+  and `mq_player` the same processes throughout. The guest found two
+  mistakes, fixed in `9e41a32`: the generated test app's script did not
+  compile, and without `ui.json` "Player software" lost stock's row. Again
+  with the final build `9e41a327da72` (`disc-server-2.57.2.zip`
+  `6066637f…`, as `release.py build` gives it; `.update` `1a73ad0e…`):
+  `integration.py --about`, 2.57.1 to 2.57.2 through the manager, rollback
+  and the switch again, screenshots at 1100 and 390 px (`work/guest-2.57.2-final`).
+  The same on the image on the owner's player (`0da9a217`, boot 2.57.2's
+  boot program, no status links): ready 6 s and confirmed 190 s after the
+  switch, the rollback and the switch again confirmed, stock untouched
+  (`work/guest-2.57.2-oldboot`): the update needs no new image.
+- [x] The same update on the owner's player (2026-10-06, the owner's report;
+  the player was on another network, so nothing was read from here): 2.57.1
+  to 2.57.2 through the manager, confirmed, the first update of the server
+  on the device. `releases/2.57.2.json`: build `9e41a327da72`,
+  `disc-server-2.57.2.zip` `6066637f…` (837,731 bytes).
+- [ ] The manager's page reloads itself once the version it switched to is
+  confirmed (the owner, 2026-10-06: after the switch from 2.57.1 the page
+  kept 2.57.1's script until reloaded by hand); it takes effect from the
+  version that runs the switch, so from 2.57.2's next update on.
+- [ ] The tag `v2.57.2` with the other tags; snowsky-disc-boot's catalog
+  names this package as the default.
+
 ## Carried over
 
 - [x] The trash refuses the card's `Apps` folder and what is in it, as it

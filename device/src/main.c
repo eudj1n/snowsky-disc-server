@@ -43,6 +43,8 @@
 /* The service's version (the combined image it belongs to) and the source
  * commit it was built from (scripts/build.sh passes it). */
 #define DISC_SERVICE_VERSION "0.9.0"
+/* The project's page, shown by the manager beside the package (public releases, 2026-10-06). */
+#define DISC_SERVICE_HOMEPAGE "https://github.com/eudj1n/snowsky-disc-server"
 #ifndef DISC_BUILD
 #define DISC_BUILD "unknown"
 #endif
@@ -1890,18 +1892,20 @@ static int catalog(struct mg_connection *c, server *s, int stream) {
  * page, the card and its database, the boot layer's status and the newest
  * service messages. Read-only; names no credential, track or user file. */
 /* A small JSON object file as it is, or null. */
+/* A boot status file, at most 8 KiB (snowsky-disc-boot: sixteen interfaces with their project pages). */
 static void about_json_file(const char *path, disc_buffer *b) {
-    char text[4097];
+    char text[8193];
     ssize_t n = -1;
     int fd = path ? open(path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC) : -1;
     struct stat st;
-    if (fd >= 0 && !fstat(fd, &st) && S_ISREG(st.st_mode) && st.st_size > 1 && st.st_size <= 4096) n = read(fd, text, (size_t)st.st_size);
+    if (fd >= 0 && !fstat(fd, &st) && S_ISREG(st.st_mode) && st.st_size > 1 && st.st_size <= 8192) n = read(fd, text, (size_t)st.st_size);
     if (fd >= 0) close(fd);
     while (n > 0 && (text[n - 1] == '\n' || text[n - 1] == ' ')) n--;
     if (n > 1 && disc_json_object(text, (size_t)n)) disc_buffer_put(b, text, (size_t)n);
     else disc_buffer_text(b, "null");
 }
-/* The boot layer's decision and this service's role (its package, slot, confirmation), or null. */
+/* The boot layer's decision, this service's role (its package, slot, confirmation) and the ui and
+ * menu roles' status, or null. */
 static void about_boot(server *s, disc_buffer *b) {
     if (!s->boot_status) { disc_buffer_text(b, "null"); return; }
     char path[256];
@@ -1909,6 +1913,11 @@ static void about_boot(server *s, disc_buffer *b) {
     about_json_file(snprintf(path, sizeof(path), "%s/boot.json", s->boot_status) < (int)sizeof(path) ? path : NULL, b);
     disc_buffer_text(b, ",\"service\":");
     about_json_file(snprintf(path, sizeof(path), "%s/service.json", s->boot_status) < (int)sizeof(path) ? path : NULL, b);
+    /* The other roles: the installed interfaces (diskOS and the like) with this boot's choice, the menu. */
+    disc_buffer_text(b, ",\"ui\":");
+    about_json_file(snprintf(path, sizeof(path), "%s/ui.json", s->boot_status) < (int)sizeof(path) ? path : NULL, b);
+    disc_buffer_text(b, ",\"menu\":");
+    about_json_file(snprintf(path, sizeof(path), "%s/menu.json", s->boot_status) < (int)sizeof(path) ? path : NULL, b);
     disc_buffer_text(b, "}");
 }
 /* An app's version as its optional app.json says ({"version":"<text>"}), for the diagnostics. */
@@ -1920,6 +1929,28 @@ static void app_version(const disc_webroot *from, const char *app, disc_buffer *
                 (i = disc_json_find(text, t, 0, "version")) > 0 && disc_json_string(text, &t[i], version, sizeof(version)) > 0;
     free(t);
     if (ok) disc_buffer_string(b, version, strlen(version));
+    else disc_buffer_text(b, "null");
+}
+/* A project link as manifests carry it: https, a host and a plain path, at most 200 bytes, no query. */
+static int homepage_ok(const char *url) {
+    size_t n = strlen(url);
+    if (n > 200 || strncmp(url, "https://", 8)) return 0;
+    const char *host = url + 8, *at = host;
+    for (; *at && *at != '/'; at++) if (!isalnum((unsigned char)*at) && *at != '.' && *at != '-') return 0;
+    if (at == host) return 0;
+    for (; *at; at++) if (!isalnum((unsigned char)*at) && !strchr("._~%+@:/-", *at)) return 0;
+    return 1;
+}
+/* An app's project link as its optional app.json says ({"homepage":"https://..."}), else null. */
+static void app_homepage(const disc_webroot *from, const char *app, disc_buffer *b) {
+    char text[1024], homepage[201];
+    int n = disc_app_small_file(from, app, "app.json", text, sizeof(text));
+    jsmntok_t *t = NULL;
+    int i, ok = n > 1 && disc_json_parse(text, (size_t)n, &t, 64) > 0 && t[0].type == JSMN_OBJECT &&
+                (i = disc_json_find(text, t, 0, "homepage")) > 0 && disc_json_string(text, &t[i], homepage, sizeof(homepage)) > 0 &&
+                homepage_ok(homepage);
+    free(t);
+    if (ok) disc_buffer_string(b, homepage, strlen(homepage));
     else disc_buffer_text(b, "null");
 }
 /* The app served at "/" (owner, 2026-10-02): the one chosen in the manager while it is installed,
@@ -1941,6 +1972,39 @@ static int effective_default(server *s, char out[DISC_APP_NAME_MAX + 1]) {
     out[0] = 0;
     return 0;
 }
+/* The player's interface language (stock's SYSCONFIG.LANGUAGE through the reviewed
+ * system_settings query), in the menu order of stock's UI: the manager's page adopts it
+ * as the player page does (owner, 2026-10-06), unless its user chose one. */
+static const char *player_language(server *s) {
+    static const char *const codes[] = {"zh-Hans", "zh-Hant", "en", "ja", "ko", "es", "it", "de", "fr", "ru"};
+    if (!s->data_root) return NULL;
+    catalog_cache *cache = load_card_file(s, CARD_QUERIES);
+    if (!cache) return NULL;
+    const char *language = NULL;
+    const disc_query *query = disc_queries_find(&cache->queries, "system_settings");
+    const char *values[DISC_QUERY_PARAMS] = {0};
+    char *json = NULL; size_t length = 0;
+    jsmntok_t *t = NULL;
+    /* {"columns":[...],"rows":[[...]],...}: the LANGUAGE column of the one row. */
+    if (query && disc_data_execute(&cache->queries, query, s->data_root, &s->database, values, &json, &length) == 200 && json &&
+        disc_json_parse(json, length, &t, 4096) > 0 && t[0].type == JSMN_OBJECT) {
+        int columns = disc_json_find(json, t, 0, "columns"), rows = disc_json_find(json, t, 0, "rows"), column = -1;
+        if (columns > 0 && t[columns].type == JSMN_ARRAY)
+            for (int k = 0, i = columns + 1; k < t[columns].size; k++, i = disc_json_skip(t, i))
+                if (disc_json_eq(json, &t[i], "LANGUAGE")) column = k;
+        if (column >= 0 && rows > 0 && t[rows].type == JSMN_ARRAY && t[rows].size > 0 && t[rows + 1].type == JSMN_ARRAY &&
+            column < t[rows + 1].size) {
+            int i = rows + 2;
+            for (int k = 0; k < column; k++) i = disc_json_skip(t, i);
+            long long index;
+            if (!disc_json_number(json, &t[i], 0, (long long)(sizeof(codes) / sizeof(codes[0])) - 1, &index)) language = codes[index];
+        }
+    }
+    free(t);
+    free(json);
+    drop_catalog(s, cache);
+    return language;
+}
 static int about_route(struct mg_connection *c, server *s) {
     static const char *const states[] = {"ok", "absent", "away", "newer", "failed"};
     disc_buffer b = {0};
@@ -1948,7 +2012,7 @@ static int about_route(struct mg_connection *c, server *s) {
     const disc_webroot *page = effective_default(s, app) ? &s->webroot : NULL;
     disc_buffer_text(&b, "{\"service\":{\"name\":\"disc-native-probe\",\"version\":\"" DISC_SERVICE_VERSION "\",\"build\":");
     disc_buffer_string(&b, DISC_BUILD, strlen(DISC_BUILD));
-    disc_buffer_text(&b, ",\"api\":1,\"uptime\":");
+    disc_buffer_text(&b, ",\"homepage\":\"" DISC_SERVICE_HOMEPAGE "\",\"api\":1,\"uptime\":");
     disc_buffer_int(&b, (monotonic_ms() - s->started_ms) / 1000);
     /* Supervised by the boot layer when it runs as its package; the combined images' identity file
      * and restart log are gone (image is always null, restarts empty: boot's status tells). */
@@ -1967,6 +2031,9 @@ static int about_route(struct mg_connection *c, server *s) {
     else disc_buffer_text(&b, "null");
     disc_buffer_text(&b, ",\"version\":");
     if (page) app_version(page, app, &b);
+    else disc_buffer_text(&b, "null");
+    disc_buffer_text(&b, ",\"homepage\":");
+    if (page) app_homepage(page, app, &b);
     else disc_buffer_text(&b, "null");
     disc_buffer_text(&b, card_owned(s) ? "},\"card\":{\"owned\":true}" : "},\"card\":{\"owned\":false}");
     disc_buffer_text(&b, ",\"database\":");
@@ -2001,6 +2068,11 @@ static int about_route(struct mg_connection *c, server *s) {
         disc_buffer_text(&b, "}}");
     }
     disc_buffer_text(&b, ",\"restarts\":[]");
+    const char *language = player_language(s);
+    disc_buffer_text(&b, ",\"player\":{\"language\":");
+    if (language) disc_buffer_string(&b, language, strlen(language));
+    else disc_buffer_text(&b, "null");
+    disc_buffer_text(&b, "}");
     disc_buffer_text(&b, ",\"log\":");
     disc_log_json(&b);
     disc_buffer_text(&b, "}");
@@ -2061,6 +2133,8 @@ static void list_app(void *arg, const char *app) {
     disc_buffer_string(l->b, app, strlen(app));
     disc_buffer_text(l->b, ",\"version\":");
     app_version(l->root, app, l->b);
+    disc_buffer_text(l->b, ",\"homepage\":");
+    app_homepage(l->root, app, l->b);
     disc_buffer_text(l->b, strcmp(app, l->effective) ? ",\"default\":false}" : ",\"default\":true}");
 }
 /* GET /api/apps (combined-009): the card's apps, each at /apps/<name>/; "default" is the one

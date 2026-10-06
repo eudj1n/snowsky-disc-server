@@ -82,6 +82,16 @@ def compatibility_data(profile: dict) -> bytes:
                        separators=(',', ':')) + '\n').encode()
 
 
+# A project link as manifests carry it (the boot contract's package.json rule): https, a host and
+# a plain path, at most 200 bytes; the gateway lists only such a link.
+HOMEPAGE = re.compile(r'https://[A-Za-z0-9.-]+(/[A-Za-z0-9._~%+@:/-]*)?')
+
+
+def check_homepage(url: str):
+    if len(url.encode()) > 200 or not HOMEPAGE.fullmatch(url):
+        raise ValueError(f'Not a project link: {url!r} (https, a host and a plain path, at most 200 bytes)')
+
+
 def check_name(name: str):
     if not APP_NAME.fullmatch(name) or name != name.strip():
         raise ValueError(f'Not an app name: {name!r} (UTF-8 of at most 64 characters, no / \\ or control characters, '
@@ -146,12 +156,15 @@ def app_files(source: Path) -> dict[str, bytes]:
 
 
 def build_app(source: Path, name: str = DEFAULT_APP, version: str | None = None,
-              origins: dict | None = None, profile: dict | None = None) -> dict[str, bytes]:
+              origins: dict | None = None, profile: dict | None = None, homepage: str | None = None) -> dict[str, bytes]:
     """The files of an app as it goes onto a card: its own, app.json, origins.json and gzip twins."""
     check_name(name)
+    if homepage is not None:
+        check_homepage(homepage)
     files = {k: v for k, v in app_files(source).items() if not k.endswith('.gz')}
-    if version is not None:
-        files['app.json'] = (json.dumps({'schema': 1, 'name': name, 'version': version}, ensure_ascii=False,
+    if version is not None or homepage is not None:
+        described = {'schema': 1, 'name': name, 'version': version, 'homepage': homepage}
+        files['app.json'] = (json.dumps({k: v for k, v in described.items() if v is not None}, ensure_ascii=False,
                                         separators=(',', ':')) + '\n').encode()
     if origins is not None:
         profile = profile or firmware_profile.load_profile()
@@ -314,6 +327,7 @@ def main():
     pack.add_argument('--output', type=Path, required=True)
     pack.add_argument('--name', default=DEFAULT_APP)
     pack.add_argument('--version', help='Recorded in app.json for the diagnostics')
+    pack.add_argument('--homepage', help="Recorded in app.json: the project's https link, shown by the manager")
     pack.add_argument('--origins', action='store_true', help="Add the reviewed origins.json (Disc Player's providers)")
     inst = sub.add_parser('install', help='Copy an app (zip or folder) into <card>/Apps (explicit operator step)')
     inst.add_argument('--app', type=Path, required=True)
@@ -333,7 +347,7 @@ def main():
             print(json.dumps({'files': len(files), 'bytes': sum(map(len, files.values()))}, indent=2))
         elif args.action == 'zip':
             files = build_app(args.source, args.name, args.version,
-                              origins_catalog.load_origins() if args.origins else None)
+                              origins_catalog.load_origins() if args.origins else None, homepage=args.homepage)
             print(json.dumps(zip_app(files, args.name, args.output), indent=2))
         elif args.action == 'install':
             if not args.confirm_card_write:
