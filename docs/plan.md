@@ -343,10 +343,21 @@ started as the package under `disc-boot`, the integration checks on it.
   an address; the manager's policy adds `connect-src https://api.github.com`)
   and compares within the same firmware line, not `latest`. One-step
   installation would need the signed `.update` among a release's files.
-- [ ] Guest acceptance on snowsky-disc-boot's guest (`about_page.py` checks
-  the language, the link and the roles), then an update of 2.57.1 to 2.57.2
-  through the manager's "Server updates", on the guest first and then on
-  the player: the step not yet done on the device.
+- [x] Guest acceptance (2026-10-06, emulator `f1d5e33`, snowsky-disc-boot's
+  image `c460b12e…` with the status links): `two_packages.py` 6 of 6 and
+  `install.py --guest` with this server (build `4cfbbe974aeb`);
+  `manager_guest.py`; the release path as the owner will take it: 2.57.1
+  installed by Play and confirmed, the signed `.update` (the owner's release
+  key) uploaded through the manager in 0.2 s, ready 6 s and confirmed 184 s
+  after the switch, returned to 2.57.1 and switched again, stock's `mq_ui`
+  and `mq_player` the same processes throughout. The guest found two
+  mistakes, fixed in `9e41a32`: the generated test app's script did not
+  compile, and without `ui.json` "Player software" lost stock's row. Again
+  with the final build `9e41a327da72` (`disc-server-2.57.2.zip`
+  `6066637f…`, as `release.py build` gives it; `.update` `1a73ad0e…`):
+  `integration.py --about`, 2.57.1 to 2.57.2 through the manager, rollback
+  and the switch again, screenshots at 1100 and 390 px (`work/guest-2.57.2-final`).
+- [ ] The same update on the player, then `releases/2.57.2.json`.
 
 ## Carried over
 
