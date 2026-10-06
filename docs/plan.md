@@ -337,6 +337,12 @@ started as the package under `disc-boot`, the integration checks on it.
   its next boot program (`ui.json`'s `installed`, the roles' status;
   snowsky-disc-boot branch `status-homepage`), which the gateway now reads up
   to 8 KiB a file.
+- [ ] After the release (owner, 2026-10-06): "Check for updates" in
+  "Player software", on demand only: the browser (the gateway has no TLS)
+  asks GitHub's API for each package's releases (anonymous, CORS, 60 an hour
+  an address; the manager's policy adds `connect-src https://api.github.com`)
+  and compares within the same firmware line, not `latest`. One-step
+  installation would need the signed `.update` among a release's files.
 - [ ] Guest acceptance on snowsky-disc-boot's guest (`about_page.py` checks
   the language, the link and the roles), then an update of 2.57.1 to 2.57.2
   through the manager's "Server updates", on the guest first and then on
