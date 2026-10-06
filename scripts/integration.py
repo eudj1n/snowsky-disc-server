@@ -57,7 +57,7 @@ if not (card/'Apps'/'Disc Player'/'index.html').is_file():
     shutil.rmtree(source, ignore_errors=True)
     out.unlink(missing_ok=True)
     source.mkdir()
-    (source/'index.html').write_text('<!doctype html><meta charset="utf-8"><title>Test app</title><p>Test app</p>\n')
+    (source/'index.html').write_text('<!doctype html><meta charset="utf-8"><title>Test app</title><p>Test app</p>\\n')
     subprocess.run(['python3', '/platform/scripts/app_bundle.py', 'zip', '--source', str(source), '--output', str(out),
                     '--version', 'test', '--homepage', 'https://github.com/eudj1n/snowsky-disc-server', '--origins'],
                    check=True, stdout=subprocess.DEVNULL)

@@ -239,9 +239,10 @@ function renderSoftware() {
     marks: [role ? (role.confirmed ? t('confirmed') : t('tentative')) : t('notBoot')],
   }]
   if (boot?.menu?.name) rows.push({ name: boot.menu.name, version: boot.menu.version, homepage: boot.menu.homepage, marks: [] })
-  if (boot?.ui?.installed) {
-    const running = boot.ui.choice?.ui
-    for (const entry of [...boot.ui.installed, { name: 'stock', confirmed: true }])
+  // Stock's own interface is always there; without an interface of ours (no ui.json) it is the one that runs.
+  if (boot) {
+    const running = boot.ui ? boot.ui.choice?.ui : 'stock'
+    for (const entry of [...(boot.ui?.installed ?? []), { name: 'stock', confirmed: true }])
       rows.push({
         name: entry.name === 'stock' ? t('stockUi') : entry.name, version: entry.version, homepage: entry.homepage,
         marks: [entry.name === running && t('thisBoot'), !entry.confirmed && t('tentative')].filter(Boolean),
