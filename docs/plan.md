@@ -379,6 +379,17 @@ started as the package under `disc-boot`, the integration checks on it.
   the player's own only) and the reason (by default, a key held at power-on,
   after failed starts, installing from the card), the raw value for one it
   does not know. Checked in Chromium on the host gateway, both languages.
+- [x] 2.57.3 on the guest (2026-10-07, emulator `f1d5e33`, the image the
+  owner's player runs, `c460b12e`; build `76e87d73ae57`,
+  `disc-server-2.57.3.zip` `5a3e63a8…`, `.update` `beeccb83…`): 2.57.2
+  installed by Play, then 2.57.3 through the manager's API, confirmed after
+  184 and 186 s, stock untouched (twice). In Chromium on 2.57.3's own page,
+  a switch to `2.57.3-check` (the same code, signed): the page reloaded once
+  it was confirmed (191 s) and said "2.57.3-check runs, confirmed."; the
+  return reloaded after 5 s (a return is confirmed at once) and said so;
+  not again after a manual reload. 2.57.2's page, which runs this update,
+  does not reload itself yet: once more by hand.
+- [ ] The update to 2.57.3 on the player, then `releases/2.57.3.json`.
 - [ ] The tag `v2.57.2` with the other tags; snowsky-disc-boot's catalog
   names this package as the default.
 
