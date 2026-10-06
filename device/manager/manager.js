@@ -414,6 +414,9 @@ function askSwitch(action, version) {
 $('update-activate').addEventListener('click', () => askSwitch('activate', update.staged.version))
 $('update-rollback').addEventListener('click', () => askSwitch('rollback', update.previous.version))
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+const SWITCHED_KEY = 'disc-manager.switched'
+let switched = null
+try { switched = sessionStorage.getItem(SWITCHED_KEY); sessionStorage.removeItem(SWITCHED_KEY) } catch { /* storage may be unavailable */ }
 // The outcome is the version that answers after the restart, not the request's success: the old
 // server may answer a moment longer, so only the boot layer's new answer counts.
 async function switchTo(action, version) {
@@ -439,7 +442,13 @@ async function switchTo(action, version) {
       say(t('returned', { version, running: running?.version ?? '—', why: update.lastRequest ?? '—' }), true, 'update-status')
       return
     }
-    if (running.confirmed) { say(t('confirmedNow', { version }), false, 'update-status'); return }
+    if (running.confirmed) {
+      // This page is the version that ran the switch: the confirmed one's own page takes over and
+      // says the outcome (owner, 2026-10-06: 2.57.1's page stayed until reloaded by hand).
+      try { sessionStorage.setItem(SWITCHED_KEY, version) } catch { /* storage may be unavailable */ }
+      location.reload()
+      return
+    }
     say(t('switched', { version }), false, 'update-status')
     if (Date.now() > until) return
     try { update = await get('/api/update'); renderUpdate() } catch { /* restarting again */ }
@@ -456,4 +465,4 @@ async function load() {
   } catch { say(t('unreachable'), true) }
 }
 applyLanguage()
-load()
+load().then(() => { if (switched) say(t('confirmedNow', { version: switched }), false, 'update-status') })

@@ -364,12 +364,16 @@ started as the package under `disc-boot`, the integration checks on it.
 - [x] The same update on the owner's player (2026-10-06, the owner's report;
   the player was on another network, so nothing was read from here): 2.57.1
   to 2.57.2 through the manager, confirmed, the first update of the server
-  on the device. `releases/2.57.2.json`: build `9e41a327da72`,
+  on the device; the player showed 2.57.2 confirmed. `releases/2.57.2.json`: build `9e41a327da72`,
   `disc-server-2.57.2.zip` `6066637f…` (837,731 bytes).
-- [ ] The manager's page reloads itself once the version it switched to is
+- [x] The manager's page reloads itself once the version it switched to is
   confirmed (the owner, 2026-10-06: after the switch from 2.57.1 the page
-  kept 2.57.1's script until reloaded by hand); it takes effect from the
-  version that runs the switch, so from 2.57.2's next update on.
+  kept 2.57.1's script until reloaded by hand), and the new version's page
+  says the outcome once (`sessionStorage`); the files are `no-store`. It
+  takes effect from the version that runs the switch, so from 2.57.2's next
+  update on. Checked in Chromium against the host gateway with the boot
+  layer's answers of a switch to 2.57.3 (one reload, the outcome shown, not
+  again after a manual reload); the guest with the next server version.
 - [ ] The tag `v2.57.2` with the other tags; snowsky-disc-boot's catalog
   names this package as the default.
 
