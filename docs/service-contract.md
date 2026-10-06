@@ -57,7 +57,8 @@ the player's), lists the boot layer's packages without changing them: this
 server (confirmed or not), the menu, the interfaces installed beside stock's
 own (diskOS and the like) and the one this boot runs, each with its project
 page where the package or the boot layer's status names one. "System" shows
-the build, the boot layer's decision with its project page, the ports and
+the build, the boot layer's decision in words ("with packages · installing from the card" for
+platform and recovery) with its project page, the ports and
 whether the card is in the player. A project page is linked only as a plain
 https address. Each change takes the serial number from the page's field (kept in
 the browser only when "Remember" is ticked); one change runs at a time and

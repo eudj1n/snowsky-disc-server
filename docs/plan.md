@@ -374,6 +374,11 @@ started as the package under `disc-boot`, the integration checks on it.
   update on. Checked in Chromium against the host gateway with the boot
   layer's answers of a switch to 2.57.3 (one reload, the outcome shown, not
   again after a manual reload); the guest with the next server version.
+- [x] The boot layer's decision in words in "System" (owner, 2026-10-06:
+  "platform · recovery" read as something broken): the mode (with packages,
+  the player's own only) and the reason (by default, a key held at power-on,
+  after failed starts, installing from the card), the raw value for one it
+  does not know. Checked in Chromium on the host gateway, both languages.
 - [ ] The tag `v2.57.2` with the other tags; snowsky-disc-boot's catalog
   names this package as the default.
 

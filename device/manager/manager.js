@@ -20,7 +20,9 @@ const TEXT = {
     saved: 'Saved.', failed: 'Not done: {why}', unreachable: 'The server does not answer.',
     server: 'Server', build: 'build {build}', language: 'Language', project: 'Project page',
     software: 'Player software', softwareHelp: 'Installed in the player itself by the boot layer. The server updates below; the rest comes with the installer.',
-    stockUi: "Player's own interface", thisBoot: 'running', boot: 'Boot layer', ports: 'Ports', card: 'Card', cardIn: 'in the player', cardOut: 'not available',
+    stockUi: "Player's own interface", thisBoot: 'running', boot: 'Boot layer',
+    modes: { platform: 'with packages', stock: "the player's own only" },
+    reasons: { default: 'by default', key: 'a key held at power-on', 'boot-loop': 'after failed starts', recovery: 'installing from the card' }, ports: 'Ports', card: 'Card', cardIn: 'in the player', cardOut: 'not available',
     portsValue: 'apps {apps}, manager {manager}', notBoot: 'not under the boot layer', confirmed: 'confirmed', tentative: 'not confirmed yet',
     updateTitle: 'Server updates',
     updateHelp: 'A server release as a .update file. It is checked as it arrives and kept beside the running version; switching is a separate step that restarts the server, not the music. Uploading replaces the version kept for a return.',
@@ -56,7 +58,9 @@ const TEXT = {
     saved: 'Сохранено.', failed: 'Не выполнено: {why}', unreachable: 'Сервер не отвечает.',
     server: 'Сервер', build: 'сборка {build}', language: 'Язык', project: 'Страница проекта',
     software: 'Программы плеера', softwareHelp: 'Установлены в память плеера слоем загрузки. Сервер обновляется ниже, остальное — установщиком.',
-    stockUi: 'Штатный интерфейс', thisBoot: 'работает', boot: 'Слой загрузки', ports: 'Порты', card: 'Карта', cardIn: 'в плеере', cardOut: 'недоступна',
+    stockUi: 'Штатный интерфейс', thisBoot: 'работает', boot: 'Слой загрузки',
+    modes: { platform: 'с пакетами', stock: 'только штатное' },
+    reasons: { default: 'по умолчанию', key: 'кнопкой при включении', 'boot-loop': 'после неудачных запусков', recovery: 'установка с карты' }, ports: 'Порты', card: 'Карта', cardIn: 'в плеере', cardOut: 'недоступна',
     portsValue: 'приложения {apps}, менеджер {manager}', notBoot: 'не под слоем загрузки', confirmed: 'подтверждён', tentative: 'ещё не подтверждён',
     updateTitle: 'Обновления сервера',
     updateHelp: 'Выпуск сервера в виде файла .update. Он проверяется по мере загрузки и хранится рядом с работающей версией; переключение — отдельный шаг, который перезапускает сервер, но не музыку. Загрузка заменяет версию, сохранённую для возврата.',
@@ -223,7 +227,9 @@ function renderFacts() {
   if (!boot) fact(list, t('boot'), t('notBoot'))
   else {
     const decision = boot.decision
-    if (decision) fact(list, t('boot'), `${decision.mode} · ${decision.reason}`, BOOT_HOMEPAGE)
+    // The boot layer's words for its decision (owner, 2026-10-06: "recovery" read as something broken).
+    const words = TEXT[language]
+    if (decision) fact(list, t('boot'), [words.modes[decision.mode] ?? decision.mode, words.reasons[decision.reason] ?? decision.reason].join(' · '), BOOT_HOMEPAGE)
   }
   fact(list, t('ports'), t('portsValue', about.ports))
   fact(list, t('card'), about.card?.owned ? t('cardIn') : t('cardOut'))
