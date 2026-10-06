@@ -46,17 +46,27 @@ it redirects (302) to the manager on the same host. `PUT /api/apps/default`
 (the manager's port) chooses or clears the app.
 
 The manager's page (`device/manager/`, embedded in the gateway) lists the
-apps with their versions and links, marks the one that opens at the
+apps with their versions and links (each app's project page when its
+`app.json` names one), marks the one that opens at the
 player's address and changes that choice, installs a zip with the upload's
 progress shown, then "Checking and unpacking", and removes an app after a
-question in its row. It shows the server's version and build, the boot
-layer's decision and package, the ports and whether the card is in the
-player. Each change takes the serial number from the page's field (kept in
+question in its row. Its header names the package the boot layer runs
+(`disc-server 2.57.2`); outside the boot layer, the build. "Player
+software", apart from the apps (owner, 2026-10-06: the server's apps are not
+the player's), lists the boot layer's packages without changing them: this
+server (confirmed or not), the menu, the interfaces installed beside stock's
+own (diskOS and the like) and the one this boot runs, each with its project
+page where the package or the boot layer's status names one. "System" shows
+the build, the boot layer's decision with its project page, the ports and
+whether the card is in the player. A project page is linked only as a plain
+https address. Each change takes the serial number from the page's field (kept in
 the browser only when "Remember" is ticked); one change runs at a time and
 the others wait, disabled. The answer of a change appears in its own
 section; a connection lost during a change is reported as such and the list
-is read again rather than taken for success or failure. English or Russian,
-after the browser's language.
+is read again rather than taken for success or failure. English or Russian
+by the player page's rule (owner, 2026-10-06): the choice made with the
+header's EN/RU switch (kept in this browser), else the player's own language
+when the page has its words, else English; never the browser's language.
 
 The manager installs and removes apps (the manager's port only, each with
 the serial number, a fresh request ID and pacing; one at a time, 409
@@ -145,15 +155,20 @@ gateway outside the boot layer.
 `GET /api/about` (combined-008; bodyless, no query, no credential) answers
 what support needs without a console: `{"service":{"name","version" (the
 combined image the service belongs to, "0.9.0" for combined-009),"build" (the source commit,
-"+changes" when the device sources differed from it),"api","uptime" (s),
+"+changes" when the device sources differed from it),"homepage" (the project's page,
+https://github.com/eudj1n/snowsky-disc-server),"api","uptime" (s),
 "supervised" (true under the boot layer)},"image":null (the combined
 images' identity file; kept for clients),
 "boot":{"decision":<the boot layer's boot.json>,"service":<its service.json:
 the package's name and version, the slot, confirmed or not, failures, the
-last request>} (snowsky-disc-boot `docs/contract.md`, "Status"; `--boot-status
+last request>,"ui":<its ui.json: the installed interfaces and this boot's choice>,
+"menu":<its menu.json>} (snowsky-disc-boot `docs/contract.md`, "Status"; `--boot-status
 DIR`, each part null when absent or not strict JSON; the whole null outside
 the boot layer),
-"page":{"source":"card"|"image"|"embedded","release"},"card":{"owned"},
+"page":{"source":"card"|null,"app","version","homepage" (the served app's, from its app.json:
+a plain https address of at most 200 bytes, else null)},"player":{"language" (stock's
+interface language through the reviewed `system_settings` query, as the player page's code:
+zh-Hans, zh-Hant, en, ja, ko, es, it, de, fr, ru; null when unreadable)},"card":{"owned"},
 "database":{"state":"ok"|"absent"|"away"|"newer"|"failed","schema","bytes",
 "plays","records","trash","writes":{"failed","lastFailure","lastSuccess",
 "reason"}} (null without --database; `writes` since the service started,
@@ -208,7 +223,7 @@ the service without `--raw-marker`, so no switch can enable them.
 
 | Route | Result |
 | --- | --- |
-| `/`, `/app.js`, `/protocol.mjs`, `/style.css` | Assets embedded in the executable |
+| `/` and the files beside it | The app chosen in the manager or the only one on the card, else a redirect to the manager |
 | `/api/health` | Service identity, read-only flag, local upstream, active reservation |
 | `/api/device` | Next image: live battery, card space and the open playback stream (below) |
 | `/api/history` | The newest plays recorded on the card; `POST` records a play a page sounded itself (combined-009, below) |

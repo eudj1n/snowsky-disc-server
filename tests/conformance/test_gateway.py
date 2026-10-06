@@ -1468,11 +1468,28 @@ class GatewayTests(unittest.TestCase):
         self.assertEqual((status, doc['service']['name'], doc['service']['version'], doc['service']['api'], doc['service']['supervised']),
                          (200, 'disc-native-probe', '0.9.0', 1, False))
         self.assertTrue(doc['service']['build'])
+        self.assertEqual(doc['service']['homepage'], 'https://github.com/eudj1n/snowsky-disc-server')
         # The combined images' identity file and restart log are gone; the shape stays for clients.
         self.assertEqual((doc['image'], doc['restarts']), (None, []))
-        self.assertEqual(doc['page'], {'source': 'card', 'app': 'Disc Player', 'version': None})
-        (report['app']/'app.json').write_text('{"schema":1,"name":"Disc Player","version":"2026.09.29"}')
-        self.assertEqual(json.loads(self.http('GET', '/api/about')[1])['page']['version'], '2026.09.29')
+        self.assertEqual(doc['page'], {'source': 'card', 'app': 'Disc Player', 'version': None, 'homepage': None})
+        (report['app']/'app.json').write_text('{"schema":1,"name":"Disc Player","version":"2026.09.29",'
+                                              '"homepage":"https://github.com/eudj1n/snowsky-disc-player"}')
+        page = json.loads(self.http('GET', '/api/about')[1])['page']
+        self.assertEqual((page['version'], page['homepage']), ('2026.09.29', 'https://github.com/eudj1n/snowsky-disc-player'))
+        listed = json.loads(self.manager('GET', '/api/apps')[1])['apps'][0]
+        self.assertEqual(listed['homepage'], 'https://github.com/eudj1n/snowsky-disc-player')
+        # Only an https link with a plain path is listed: the manager puts it in a link as it is.
+        for bad in ('http://github.com/a', 'javascript:alert(1)', 'https://github.com/a?b=1', 'https://github.com/a b',
+                    'https:///a', 'https://github.com/' + 'a' * 190, 'https://github.com/a"><b'):
+            (report['app']/'app.json').write_text(json.dumps({'schema': 1, 'name': 'Disc Player', 'homepage': bad}))
+            self.assertIsNone(json.loads(self.http('GET', '/api/about')[1])['page']['homepage'], bad)
+            self.assertIsNone(json.loads(self.manager('GET', '/api/apps')[1])['apps'][0]['homepage'], bad)
+        # The player's own language (stock's SYSCONFIG.LANGUAGE 9) as the page's code; null outside the menu's list.
+        self.assertEqual(doc['player'], {'language': 'ru'})
+        import sqlite3
+        with sqlite3.connect(self.data/'sysconfig.db') as db:
+            db.execute('UPDATE SYSCONFIG SET LANGUAGE = 100')
+        self.assertEqual(json.loads(self.http('GET', '/api/about')[1])['player'], {'language': None})
         self.assertEqual(doc['card'], {'owned': True})
         self.assertEqual(doc['database'], {'state': 'absent', 'schema': None, 'bytes': None, 'plays': None, 'records': None, 'trash': None,
                                            'writes': {'failed': 0, 'lastFailure': None, 'lastSuccess': None, 'reason': None}})
@@ -1505,6 +1522,14 @@ class GatewayTests(unittest.TestCase):
         self.assertTrue(ready.is_file(), 'the ready file follows the listener')
         boot = json.loads(self.http('GET', '/api/about')[1])['boot']
         self.assertEqual((boot['decision']['mode'], boot['service']['name'], boot['service']['state']), ('platform', 'disc-server', 'starting'))
+        self.assertEqual((boot['ui'], boot['menu']), (None, None), 'no interface or menu installed')
+        # The installed interfaces (diskOS) with this boot's choice, and the menu, as the boot layer wrote them.
+        (status/'ui.json').write_text('{"schema":1,"role":"ui","state":"confirmed","name":"diskos","version":"1.2.0",'
+                                      '"choice":{"schema":1,"ui":"diskos","by":"menu","menu":true,"note":null},'
+                                      '"installed":[{"name":"diskos","version":"1.2.0","slot":"a","confirmed":true}]}\n')
+        (status/'menu.json').write_text('{"schema":1,"role":"menu","state":"answered","name":"disc-menu","version":"2.57.2"}\n')
+        boot = json.loads(self.http('GET', '/api/about')[1])['boot']
+        self.assertEqual((boot['ui']['choice']['ui'], boot['ui']['installed'][0]['name'], boot['menu']['version']), ('diskos', 'diskos', '2.57.2'))
         self.assertTrue(json.loads(self.http('GET', '/api/about')[1])['service']['supervised'], 'the boot layer supervises it')
         (status/'service.json').write_text('{"state": confirm')
         self.assertIsNone(json.loads(self.http('GET', '/api/about')[1])['boot']['service'])
@@ -1633,7 +1658,7 @@ class GatewayTests(unittest.TestCase):
         status, _, headers = self.http('GET', '/')
         self.assertEqual((status, headers['location']), (302, f'http://127.0.0.1:{self.manager_port}/'))
         self.assertEqual(self.http('GET', '/app.js')[0], 404)
-        self.assertEqual(json.loads(self.http('GET', '/api/about')[1])['page'], {'source': None, 'app': None, 'version': None})
+        self.assertEqual(json.loads(self.http('GET', '/api/about')[1])['page'], {'source': None, 'app': None, 'version': None, 'homepage': None})
         self.assertEqual(self.store('GET', '')[0], 200)  # the catalogs do not depend on an app
 
     def test_the_manager_has_its_own_port_and_origin(self):
@@ -1781,7 +1806,7 @@ class GatewayTests(unittest.TestCase):
         self.assertEqual(json.loads(body), {'name': 'Radio', 'version': '1.0.0', 'files': 3, 'bytes': sum(files.values())})
         self.assertEqual(self.http('GET', '/apps/Radio/app.js')[1], b'fetch("/api/health") // 1.0.0')
         listing = json.loads(self.manager('GET', '/api/apps')[1])
-        self.assertIn({'name': 'Radio', 'version': '1.0.0', 'default': False}, listing['apps'])
+        self.assertIn({'name': 'Radio', 'version': '1.0.0', 'homepage': None, 'default': False}, listing['apps'])
         self.assertFalse((self.card/'.disc'/'app-upload.zip').exists(), 'the upload goes once installed')
         self.assertEqual([p.name for p in (self.card/'Apps').iterdir() if p.name.startswith('.')], [])
         # A newer version replaces the app; a refused one keeps it.
@@ -2399,6 +2424,7 @@ printf '{"ok":true,"name":"disc-server","version":"x","bytes":1}\\n'
         self.proc.terminate(); self.proc.wait(timeout=5)
         www, _ = self.publish(); (self.data/'sysconfig.db').unlink(); self.start(www)
         self.assertEqual(self.http('GET', '/api/data/system_settings')[0], 503)
+        self.assertEqual(json.loads(self.http('GET', '/api/about')[1])['player'], {'language': None}, 'no settings, no language')
         self.assertEqual(self.http('GET', '/api/data/library_summary')[0], 200)
         # Stock drops its queue table when a scan removes a queued file: gone, not busy (409, no retry).
         import sqlite3

@@ -40,6 +40,19 @@ class AppBundleTests(unittest.TestCase):
         (source/'assets'/'index-Ij90Kl12.css').write_text('body{margin:0}')
         return source
 
+    def test_app_json_names_the_project_page_only_as_a_plain_https_link(self):
+        # The page's pack-app.mjs writes the same bytes (snowsky-disc-player tests/unit/pack-app.test.mjs).
+        files = bundle.build_app(self.dist(), 'Disc Player', '2026.10.06', homepage='https://github.com/eudj1n/snowsky-disc-player')
+        self.assertEqual(files['app.json'], b'{"schema":1,"name":"Disc Player","version":"2026.10.06",'
+                                            b'"homepage":"https://github.com/eudj1n/snowsky-disc-player"}\n')
+        self.assertEqual(bundle.build_app(self.dist('dist2'), 'Disc Player', '1')['app.json'],
+                         b'{"schema":1,"name":"Disc Player","version":"1"}\n')
+        source = self.dist('dist3')
+        for bad in ('http://github.com/a', 'javascript:alert(1)', 'https://github.com/a?b=1', 'https://github.com/a#b',
+                    'https:///a', 'https://github.com/' + 'a' * 190, 'https://github.com/a"><b'):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                bundle.build_app(source, 'Disc Player', '1', homepage=bad)
+
     def test_a_zip_holds_the_app_folder_with_twins_app_json_and_origins(self):
         files = bundle.build_app(self.dist(), 'Disc Player', '2026.09.29', origins_catalog.load_origins())
         report = bundle.zip_app(files, 'Disc Player', self.root/'disc-player.zip')

@@ -301,6 +301,44 @@ started as the package under `disc-boot`, the integration checks on it.
   (owner, 2026-10-05), with boot's `v2.57.2` and the page's tag; the draft
   rebuilt by CI and compared with the record, published by the owner.
 
+## Stage 3 — 2.57.2, the manager before the public releases (owner, 2026-10-06)
+
+- [x] The manager's language by the player page's rule: the choice made with
+  the header's EN/RU switch (kept in the browser), else the player's own
+  language, else English, never the browser's. `/api/about` adds
+  `player.language` (stock's SYSCONFIG.LANGUAGE through the reviewed
+  `system_settings` query, as the page's code). `test_gateway` (the
+  fixture's 9 is `ru`, 100 and a missing settings database are null).
+- [x] The header names the package the boot layer runs (`disc-server
+  2.57.2`), not the gateway's internal `disc-native-probe 0.9.0`, which
+  `/api/status`, `/api/about` and `--version` keep for their clients; the
+  build stays under "System".
+- [x] Project links before the public releases: `app.json` may name the
+  app's `homepage` (`app_bundle.py zip --homepage`, the page's
+  `pack-app.mjs` the same bytes, snowsky-disc-player `3712e3a`), a plain
+  https address of at most 200 bytes, the rule of snowsky-disc-boot's
+  `package.json` (`17a41e9`, branch `homepage-links`); `/api/apps` and
+  `/api/about` list it only in that form and the server's own
+  (`service.homepage`). `test_gateway`, `test_publisher`.
+- [x] "Player software" apart from the apps (owner, 2026-10-06): this
+  server, the menu, the installed interfaces (diskOS) beside stock's own and
+  the one this boot runs, from the boot layer's `ui.json` and `menu.json`,
+  which `/api/about` now passes; shown, not changed here. Screenshots of the
+  host gateway light and dark, 1100 and 390 px wide: no horizontal scroll,
+  no console error.
+- [x] `apps/probe` is gone (the owner: not needed): the guest installs a
+  generated one-page test app when its card has none; `scripts/test.sh`
+  checks the manager's script syntax instead of the probe's protocol tests.
+- [ ] The server's `package.json` names its homepage once
+  `scripts/boot-revision` pins the boot commit whose `package.py` writes it.
+- [ ] The menu's and the interfaces' links: their packages carry
+  `homepage` from their next builds; the boot layer's status names it from
+  its next boot program (`ui.json`'s `installed`, the roles' status).
+- [ ] Guest acceptance on snowsky-disc-boot's guest (`about_page.py` checks
+  the language, the link and the roles), then an update of 2.57.1 to 2.57.2
+  through the manager's "Server updates", on the guest first and then on
+  the player: the step not yet done on the device.
+
 ## Carried over
 
 - [x] The trash refuses the card's `Apps` folder and what is in it, as it

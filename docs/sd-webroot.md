@@ -10,7 +10,7 @@ installation. Anyone can make an app; Disc Player is the default one.
 
 | Where | What |
 | --- | --- |
-| `Apps/<App>/` on the card | One app: `index.html` and the files it loads; an optional `origins.json` (the app's external origins) and `app.json` (its name and version) |
+| `Apps/<App>/` on the card | One app: `index.html` and the files it loads; an optional `origins.json` (the app's external origins) and `app.json` (its name, version and project page) |
 | `Apps/Disc Player/` | The default app, served at `/` |
 | `.disc/catalog/` on the card | The card's override of the reviewed catalogs (below) |
 | `catalog/` in the service package | The reviewed catalogs: `compatibility.json`, `commands.json`, `queries.json`, `store.json`, `hosted.json` |
@@ -88,8 +88,11 @@ must satisfy, and the service's policy enforces at run time:
 - Names a FAT card keeps (no case collisions), at most 512 files and 32 MiB.
 
 `python3 scripts/app_bundle.py zip --source dist --output <app>.zip
---name "<App>" --version <version> [--origins]` packs a checked build as
-`<App>/` with gzip twins of its text files, `app.json` and, with
+--name "<App>" --version <version> [--homepage <https address>] [--origins]`
+packs a checked build as `<App>/` with gzip twins of its text files,
+`app.json` (`{"schema":1,"name","version","homepage"}`, the homepage only when
+given: a plain https address of at most 200 bytes, no query or fragment, the
+rule of snowsky-disc-boot's `package.json`; the manager links it) and, with
 `--origins`, Disc Player's reviewed `origins.json` (from
 `firmware/origins/`). The same build gives the same zip.
 
