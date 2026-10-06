@@ -94,6 +94,7 @@ class PackageBuildTests(unittest.TestCase):
         manifest = json.loads((folder/'package.json').read_text())
         self.assertEqual((manifest['name'], manifest['version'], manifest['role'], manifest['entry'], manifest['arch']),
                          ('disc-server', '2026.10.02-test', 'service', 'bin/run', 'mips32el-linux-static'))
+        self.assertEqual(manifest['homepage'], 'https://github.com/eudj1n/snowsky-disc-server', 'the project page, as /api/about names it')
         self.assertEqual(sorted(manifest['files']), ['bin/disc-service', 'bin/run', 'catalog/apps.json', 'catalog/commands.json',
                                                      'catalog/compatibility.json', 'catalog/hosted.json', 'catalog/queries.json',
                                                      'catalog/store.json', 'keys/update-keys'])

@@ -329,11 +329,14 @@ started as the package under `disc-boot`, the integration checks on it.
 - [x] `apps/probe` is gone (the owner: not needed): the guest installs a
   generated one-page test app when its card has none; `scripts/test.sh`
   checks the manager's script syntax instead of the probe's protocol tests.
-- [ ] The server's `package.json` names its homepage once
-  `scripts/boot-revision` pins the boot commit whose `package.py` writes it.
+- [x] The server's `package.json` names its homepage
+  (`build_package.HOMEPAGE`, `test_package_build`); `scripts/boot-revision`
+  pins snowsky-disc-boot 2.x `c1a4903` (its PR #5), whose `package.py` writes it.
 - [ ] The menu's and the interfaces' links: their packages carry
   `homepage` from their next builds; the boot layer's status names it from
-  its next boot program (`ui.json`'s `installed`, the roles' status).
+  its next boot program (`ui.json`'s `installed`, the roles' status;
+  snowsky-disc-boot branch `status-homepage`), which the gateway now reads up
+  to 8 KiB a file.
 - [ ] Guest acceptance on snowsky-disc-boot's guest (`about_page.py` checks
   the language, the link and the roles), then an update of 2.57.1 to 2.57.2
   through the manager's "Server updates", on the guest first and then on
