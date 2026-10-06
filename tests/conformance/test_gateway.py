@@ -1530,6 +1530,12 @@ class GatewayTests(unittest.TestCase):
         (status/'menu.json').write_text('{"schema":1,"role":"menu","state":"answered","name":"disc-menu","version":"2.57.2"}\n')
         boot = json.loads(self.http('GET', '/api/about')[1])['boot']
         self.assertEqual((boot['ui']['choice']['ui'], boot['ui']['installed'][0]['name'], boot['menu']['version']), ('diskos', 'diskos', '2.57.2'))
+        # Sixteen interfaces with their project pages, as the boot layer may write them (up to 8 KiB).
+        installed = [{'name': f'ui-{k:02}-' + 'n' * 26, 'version': 'v' * 64, 'homepage': 'https://github.com/' + 'p' * 181,
+                      'slot': 'a', 'confirmed': True} for k in range(16)]
+        (status/'ui.json').write_text(json.dumps({'schema': 1, 'role': 'ui', 'state': 'stock-ui', 'installed': installed}) + '\n')
+        self.assertGreater((status/'ui.json').stat().st_size, 4096)
+        self.assertEqual(len(json.loads(self.http('GET', '/api/about')[1])['boot']['ui']['installed']), 16)
         self.assertTrue(json.loads(self.http('GET', '/api/about')[1])['service']['supervised'], 'the boot layer supervises it')
         (status/'service.json').write_text('{"state": confirm')
         self.assertIsNone(json.loads(self.http('GET', '/api/about')[1])['boot']['service'])

@@ -1892,12 +1892,13 @@ static int catalog(struct mg_connection *c, server *s, int stream) {
  * page, the card and its database, the boot layer's status and the newest
  * service messages. Read-only; names no credential, track or user file. */
 /* A small JSON object file as it is, or null. */
+/* A boot status file, at most 8 KiB (snowsky-disc-boot: sixteen interfaces with their project pages). */
 static void about_json_file(const char *path, disc_buffer *b) {
-    char text[4097];
+    char text[8193];
     ssize_t n = -1;
     int fd = path ? open(path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC) : -1;
     struct stat st;
-    if (fd >= 0 && !fstat(fd, &st) && S_ISREG(st.st_mode) && st.st_size > 1 && st.st_size <= 4096) n = read(fd, text, (size_t)st.st_size);
+    if (fd >= 0 && !fstat(fd, &st) && S_ISREG(st.st_mode) && st.st_size > 1 && st.st_size <= 8192) n = read(fd, text, (size_t)st.st_size);
     if (fd >= 0) close(fd);
     while (n > 0 && (text[n - 1] == '\n' || text[n - 1] == ' ')) n--;
     if (n > 1 && disc_json_object(text, (size_t)n)) disc_buffer_put(b, text, (size_t)n);

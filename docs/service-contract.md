@@ -163,7 +163,7 @@ images' identity file; kept for clients),
 the package's name and version, the slot, confirmed or not, failures, the
 last request>,"ui":<its ui.json: the installed interfaces and this boot's choice>,
 "menu":<its menu.json>} (snowsky-disc-boot `docs/contract.md`, "Status"; `--boot-status
-DIR`, each part null when absent or not strict JSON; the whole null outside
+DIR`, each part null when absent, over 8 KiB or not strict JSON; the whole null outside
 the boot layer),
 "page":{"source":"card"|null,"app","version","homepage" (the served app's, from its app.json:
 a plain https address of at most 200 bytes, else null)},"player":{"language" (stock's
