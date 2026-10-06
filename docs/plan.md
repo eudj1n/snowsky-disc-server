@@ -357,6 +357,10 @@ started as the package under `disc-boot`, the integration checks on it.
   `6066637f…`, as `release.py build` gives it; `.update` `1a73ad0e…`):
   `integration.py --about`, 2.57.1 to 2.57.2 through the manager, rollback
   and the switch again, screenshots at 1100 and 390 px (`work/guest-2.57.2-final`).
+  The same on the image on the owner's player (`0da9a217`, boot 2.57.2's
+  boot program, no status links): ready 6 s and confirmed 190 s after the
+  switch, the rollback and the switch again confirmed, stock untouched
+  (`work/guest-2.57.2-oldboot`): the update needs no new image.
 - [ ] The same update on the player, then `releases/2.57.2.json`.
 
 ## Carried over
