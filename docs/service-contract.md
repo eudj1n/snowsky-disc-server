@@ -57,13 +57,15 @@ the player's), lists the boot layer's packages without changing them: this
 server (confirmed or not), the menu, the interfaces installed beside stock's
 own (diskOS and the like) and the one this boot runs, each with its project
 page where the package or the boot layer's status names one. "System" shows
-the build, the boot layer's decision with its project page, the ports and
+the build, the boot layer's decision in words ("with packages · installing from the card" for
+platform and recovery) with its project page, the ports and
 whether the card is in the player. A project page is linked only as a plain
 https address. Each change takes the serial number from the page's field (kept in
 the browser only when "Remember" is ticked); one change runs at a time and
 the others wait, disabled. The answer of a change appears in its own
 section; a connection lost during a change is reported as such and the list
-is read again rather than taken for success or failure. English or Russian
+is read again rather than taken for success or failure. Once a switch is
+confirmed the page reloads, so the new version's page takes over. English or Russian
 by the player page's rule (owner, 2026-10-06): the choice made with the
 header's EN/RU switch (kept in this browser), else the player's own language
 when the page has its words, else English; never the browser's language.

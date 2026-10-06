@@ -20,7 +20,9 @@ const TEXT = {
     saved: 'Saved.', failed: 'Not done: {why}', unreachable: 'The server does not answer.',
     server: 'Server', build: 'build {build}', language: 'Language', project: 'Project page',
     software: 'Player software', softwareHelp: 'Installed in the player itself by the boot layer. The server updates below; the rest comes with the installer.',
-    stockUi: "Player's own interface", thisBoot: 'running', boot: 'Boot layer', ports: 'Ports', card: 'Card', cardIn: 'in the player', cardOut: 'not available',
+    stockUi: "Player's own interface", thisBoot: 'running', boot: 'Boot layer',
+    modes: { platform: 'with packages', stock: "the player's own only" },
+    reasons: { default: 'by default', key: 'a key held at power-on', 'boot-loop': 'after failed starts', recovery: 'installing from the card' }, ports: 'Ports', card: 'Card', cardIn: 'in the player', cardOut: 'not available',
     portsValue: 'apps {apps}, manager {manager}', notBoot: 'not under the boot layer', confirmed: 'confirmed', tentative: 'not confirmed yet',
     updateTitle: 'Server updates',
     updateHelp: 'A server release as a .update file. It is checked as it arrives and kept beside the running version; switching is a separate step that restarts the server, not the music. Uploading replaces the version kept for a return.',
@@ -56,7 +58,9 @@ const TEXT = {
     saved: 'Сохранено.', failed: 'Не выполнено: {why}', unreachable: 'Сервер не отвечает.',
     server: 'Сервер', build: 'сборка {build}', language: 'Язык', project: 'Страница проекта',
     software: 'Программы плеера', softwareHelp: 'Установлены в память плеера слоем загрузки. Сервер обновляется ниже, остальное — установщиком.',
-    stockUi: 'Штатный интерфейс', thisBoot: 'работает', boot: 'Слой загрузки', ports: 'Порты', card: 'Карта', cardIn: 'в плеере', cardOut: 'недоступна',
+    stockUi: 'Штатный интерфейс', thisBoot: 'работает', boot: 'Слой загрузки',
+    modes: { platform: 'с пакетами', stock: 'только штатное' },
+    reasons: { default: 'по умолчанию', key: 'кнопкой при включении', 'boot-loop': 'после неудачных запусков', recovery: 'установка с карты' }, ports: 'Порты', card: 'Карта', cardIn: 'в плеере', cardOut: 'недоступна',
     portsValue: 'приложения {apps}, менеджер {manager}', notBoot: 'не под слоем загрузки', confirmed: 'подтверждён', tentative: 'ещё не подтверждён',
     updateTitle: 'Обновления сервера',
     updateHelp: 'Выпуск сервера в виде файла .update. Он проверяется по мере загрузки и хранится рядом с работающей версией; переключение — отдельный шаг, который перезапускает сервер, но не музыку. Загрузка заменяет версию, сохранённую для возврата.',
@@ -223,7 +227,9 @@ function renderFacts() {
   if (!boot) fact(list, t('boot'), t('notBoot'))
   else {
     const decision = boot.decision
-    if (decision) fact(list, t('boot'), `${decision.mode} · ${decision.reason}`, BOOT_HOMEPAGE)
+    // The boot layer's words for its decision (owner, 2026-10-06: "recovery" read as something broken).
+    const words = TEXT[language]
+    if (decision) fact(list, t('boot'), [words.modes[decision.mode] ?? decision.mode, words.reasons[decision.reason] ?? decision.reason].join(' · '), BOOT_HOMEPAGE)
   }
   fact(list, t('ports'), t('portsValue', about.ports))
   fact(list, t('card'), about.card?.owned ? t('cardIn') : t('cardOut'))
@@ -414,6 +420,9 @@ function askSwitch(action, version) {
 $('update-activate').addEventListener('click', () => askSwitch('activate', update.staged.version))
 $('update-rollback').addEventListener('click', () => askSwitch('rollback', update.previous.version))
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+const SWITCHED_KEY = 'disc-manager.switched'
+let switched = null
+try { switched = sessionStorage.getItem(SWITCHED_KEY); sessionStorage.removeItem(SWITCHED_KEY) } catch { /* storage may be unavailable */ }
 // The outcome is the version that answers after the restart, not the request's success: the old
 // server may answer a moment longer, so only the boot layer's new answer counts.
 async function switchTo(action, version) {
@@ -439,7 +448,13 @@ async function switchTo(action, version) {
       say(t('returned', { version, running: running?.version ?? '—', why: update.lastRequest ?? '—' }), true, 'update-status')
       return
     }
-    if (running.confirmed) { say(t('confirmedNow', { version }), false, 'update-status'); return }
+    if (running.confirmed) {
+      // This page is the version that ran the switch: the confirmed one's own page takes over and
+      // says the outcome (owner, 2026-10-06: 2.57.1's page stayed until reloaded by hand).
+      try { sessionStorage.setItem(SWITCHED_KEY, version) } catch { /* storage may be unavailable */ }
+      location.reload()
+      return
+    }
     say(t('switched', { version }), false, 'update-status')
     if (Date.now() > until) return
     try { update = await get('/api/update'); renderUpdate() } catch { /* restarting again */ }
@@ -456,4 +471,4 @@ async function load() {
   } catch { say(t('unreachable'), true) }
 }
 applyLanguage()
-load()
+load().then(() => { if (switched) say(t('confirmedNow', { version: switched }), false, 'update-status') })
