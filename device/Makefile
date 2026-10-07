@@ -6,6 +6,10 @@ CPPFLAGS += -DDISC_HTTP_CLIENT_TIMEOUT_MS=3000
 # The source commit (scripts/build.sh passes it), shown by /api/about.
 DISC_BUILD ?= unknown
 CPPFLAGS += -DDISC_BUILD='"$(DISC_BUILD)"'
+# civetweb's system information carries a build string, __DATE__ unless BUILD_DATE is set: the
+# build id instead, so that a release built later from the same sources has the same bytes
+# (2026-10-07: 2.57.3's package held the date its civetweb object was compiled).
+CPPFLAGS += -DBUILD_DATE='"$(DISC_BUILD)"'
 # A new build ID rebuilds main.o even when no source changed, so /api/about
 # never shows a stale one. Checked while the makefile is read, before make
 # looks at any file (it may compare times only to the second).
