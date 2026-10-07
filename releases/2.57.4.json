@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "version": "2.57.4",
+  "firmware": "2.57",
+  "tag": "v2.57.4",
+  "buildId": "9780db847434",
+  "files": {
+    "disc-server-2.57.4.zip": {
+      "bytes": 838185,
+      "sha256": "4f53616da39424c53b29a3099d3bbf979725b262631de623334837cf2609845f"
+    }
+  },
+  "accepted": "the code of 2.57.3 with civetweb's build string the build id instead of its compile date, so that a build from the record commit is this package (built twice from scratch here and once by CI: the same bytes). On snowsky-disc-boot's guest at emulator f1d5e33 with FiiO 2.57 and the image the owner's player runs (boot 2.57.3, 69d82c9d), 2026-10-07: 2.57.3 installed by Play and confirmed, then this package's signed .update through the manager's API, confirmed in 188 s, stock untouched. On the owner's player, 2026-10-07: 2.57.3 to 2.57.4 through the manager, confirmed (the owner's report)",
+  "urls": {
+    "disc-server-2.57.4.zip": "https://github.com/eudj1n/snowsky-disc-server/releases/download/v2.57.4/disc-server-2.57.4.zip"
+  }
+}
