@@ -86,8 +86,12 @@ on GitHub's runners.
 ## Releases
 
 A release is named after the FiiO firmware it is for and our number for it, counted apart from
-the boot layer's: `2.57.1` is the server's first for FiiO's 2.57, tagged `v2.57.1` (owner,
-2026-10-03). `scripts/release.py` builds `disc-server-<version>.zip` (the release variant,
+the boot layer's: `2.57.1` was the server's first for FiiO's 2.57 (owner, 2026-10-03). 2.57.1,
+2.57.2 and 2.57.3 are recorded and ran on the owner's player, but none is tagged: a recorded
+number is never used again, and 2.57.3's package held the date its civetweb object was compiled,
+so a build from its record commit was not the recorded package (2026-10-07). The build string
+is the build id since; `v2.57.4` is the first tag (owner, 2026-10-07: only the current server is
+published). `scripts/release.py` builds `disc-server-<version>.zip` (the release variant,
 `build/mips/disc-service-release`) and `SHA256SUMS`, packaged with snowsky-disc-boot's
 `package.py` (`DISC_BOOT_DIR`); the workflows check that repository out at
 `scripts/boot-revision`. Debug packages and the signed `.update` file stay on the owner's
