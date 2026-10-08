@@ -56,13 +56,28 @@ class ReleaseTests(unittest.TestCase):
                          'https://github.com/eudj1n/snowsky-disc-server/releases/download/v2.57.1/disc-server-2.57.1.zip')
         with self.assertRaisesRegex(release.ReleaseError, 'recorded once'):
             release.record('2.57.1', self.root/'dist', 'again', '181c5a8d0000', releases)
-        self.assertIn('`disc-server-2.57.1.zip`', release.notes(release.check('2.57.1', self.root/'dist', '181c5a8d0000', releases)))
+        changelog = self.root/'CHANGELOG.md'
+        changelog.write_text('# Changelog\n\n## [2.57.2] — unreleased\n\n- Next.\n\n## [2.57.1] — 2026-10-03\n\n- First.\n')
+        text = release.notes(release.check('2.57.1', self.root/'dist', '181c5a8d0000', releases), changelog)
+        self.assertTrue(text.startswith('- First.\n\n---\n'), text)
+        self.assertIn('`disc-server-2.57.1.zip`', text)
         with self.assertRaisesRegex(release.ReleaseError, 'build id differ'):
             release.check('2.57.1', self.root/'dist', 'ffffffffffff', releases)
         (self.mips/'disc-service-release').write_bytes(b'\x7fELF another gateway')
         self.build('other')
         with self.assertRaisesRegex(release.ReleaseError, 'disc-server-2.57.1.zip differ'):
             release.check('2.57.1', self.root/'other', '181c5a8d0000', releases)
+
+    def test_the_notes_begin_with_the_changelog_and_need_its_dated_section(self):
+        changelog = self.root/'CHANGELOG.md'
+        changelog.write_text('# Changelog\n\n## [2.57.3] — unreleased\n\n- Next.\n\n'
+                             '## [2.57.2] — 2026-10-06\n\nWhat changes.\n\n### Apps\n\n- One.\n\n## [2.57.1] — 2026-10-03\n\n- First.\n')
+        self.assertEqual(release.changes('2.57.2', changelog), 'What changes.\n\n### Apps\n\n- One.')
+        self.assertEqual(release.changes('2.57.1', changelog), '- First.')
+        with self.assertRaisesRegex(release.ReleaseError, 'no release date'):
+            release.changes('2.57.3', changelog)
+        with self.assertRaisesRegex(release.ReleaseError, 'no section for 2.57.9'):
+            release.changes('2.57.9', changelog)
 
     def test_the_repository_records_are_releases(self):
         for path in sorted((ROOT/'releases').glob('*.json')) if (ROOT/'releases').is_dir() else []:

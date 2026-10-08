@@ -131,8 +131,25 @@ def check(version, dist, build_id, releases=RELEASES):
     return data
 
 
-def notes(data):
-    lines = [f'The server {data["version"]} for FiiO\'s firmware {data["firmware"]} (build {data["buildId"]}), '
+CHANGELOG = ROOT/'CHANGELOG.md'
+
+
+def changes(version, changelog=CHANGELOG):
+    """The version's dated section of CHANGELOG.md, without its heading: what changes for a user, the release's
+    notes first. A release without one is not published."""
+    lines = Path(changelog).read_text().split('\n')
+    start = next((i for i, line in enumerate(lines) if line.startswith(f'## [{version}]')), None)
+    if start is None:
+        raise ReleaseError(f'CHANGELOG.md has no section for {version}')
+    if not re.fullmatch(r'## \[[^\]]+\] — \d{4}-\d{2}-\d{2}', lines[start]):
+        raise ReleaseError(f'CHANGELOG.md\'s section for {version} has no release date: {lines[start]}')
+    end = next((i for i in range(start + 1, len(lines)) if lines[i].startswith('## ')), len(lines))
+    return '\n'.join(lines[start + 1:end]).strip()
+
+
+def notes(data, changelog=CHANGELOG):
+    lines = [changes(data['version'], changelog), '', '---', '',
+             f'The server {data["version"]} for FiiO\'s firmware {data["firmware"]} (build {data["buildId"]}), '
              'the boot layer\'s service package.', '', f'Accepted on the emulator\'s guest: {data["accepted"]}.', '',
              'Install it with snowsky-disc-boot\'s install.py, which takes it from the boot layer\'s catalog by its digest.', '',
              '| File | Bytes | SHA-256 |', '| --- | --- | --- |']

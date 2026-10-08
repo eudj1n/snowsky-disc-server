@@ -395,6 +395,34 @@ started as the package under `disc-boot`, the integration checks on it.
 - [ ] The tags `v2.57.2` and `v2.57.3` with the other tags; snowsky-disc-boot's
   catalog names 2.57.3 as the default.
 
+## Stage 4 — 2.57.5, Disc Player 1.0.0 and the documents for users (owner, 2026-10-08)
+
+- [x] `apps/catalog.json` names Disc Player 1.0.0, the page's first public
+  release, by its published address and digest (`disc-player-1.0.0.zip`,
+  600,979 bytes, `4c573178…`), so the boot layer's installer puts it on the
+  card. The server is 2.57.4's build (`9780db847434`): the package changes
+  only in that file. `test_apps_catalog`.
+- [x] 2.57.5 on the server's guest (2026-10-08, emulator `f1d5e33`, FiiO
+  2.57, the image the owner's player runs, boot 2.57.3 `69d82c9d`): 2.57.4
+  installed by Play and confirmed, then 2.57.5's signed `.update`
+  (`9845a256…`) through the manager's API, confirmed 187 s after the
+  switch, stock untouched; Disc Player 1.0.0's published zip installed
+  through the manager (105 files), the only app and served at `/`
+  (`work/guest-2.57.5`). `releases/2.57.5.json`: `disc-server-2.57.5.zip`
+  `26d19b4c…` (838,153 bytes), as the signed package's zip.
+- [x] Disc Player 1.0.0 on the owner's player (2026-10-08, the owner's
+  report): installed through the manager of 2.57.4, served from the card.
+- [x] The README for users, as snowsky-disc-player's and
+  snowsky-disc-qemu's (owner, 2026-10-08): the manager large, what the
+  server does, the manager, safety, what one needs (the boot layer; the
+  installation guide comes with its documents), and the scope; the
+  pictures from the guest above after a usual start (`docs/images`).
+  `CHANGELOG.md` for users from 2.57.4, the first published release (which
+  holds 2.57.1 to 2.57.3), and 2.57.5; the release's notes begin with its
+  dated section (`release.py check --notes`, `test_release`).
+- [ ] The tag `v2.57.5` after the merge; the owner publishes the draft;
+  snowsky-disc-boot's catalog names 2.57.5.
+
 ## Carried over
 
 - [x] The trash refuses the card's `Apps` folder and what is in it, as it

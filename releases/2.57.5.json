@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "version": "2.57.5",
+  "firmware": "2.57",
+  "tag": "v2.57.5",
+  "buildId": "9780db847434",
+  "files": {
+    "disc-server-2.57.5.zip": {
+      "bytes": 838153,
+      "sha256": "26d19b4ceccb329ad6a07ff163bea70d116e4acfde2dea43018010243e3affa2"
+    }
+  },
+  "accepted": "2.57.4's code (the same build) with apps/catalog.json naming Disc Player 1.0.0, the page's first public release. On the server's guest at emulator f1d5e33 with FiiO 2.57 and the image the owner's player runs (boot 2.57.3, 69d82c9d), 2026-10-08: 2.57.4 installed by Play and confirmed, then this package's signed .update through the manager's API, confirmed in 187 s, stock untouched; Disc Player 1.0.0's published zip installed through the manager and served at /. On the owner's player, 2026-10-08: Disc Player 1.0.0 installed through the manager of 2.57.4 (the owner's report)",
+  "urls": {
+    "disc-server-2.57.5.zip": "https://github.com/eudj1n/snowsky-disc-server/releases/download/v2.57.5/disc-server-2.57.5.zip"
+  }
+}
