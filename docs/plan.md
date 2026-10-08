@@ -420,8 +420,12 @@ started as the package under `disc-boot`, the integration checks on it.
   `CHANGELOG.md` for users from 2.57.4, the first published release (which
   holds 2.57.1 to 2.57.3), and 2.57.5; the release's notes begin with its
   dated section (`release.py check --notes`, `test_release`).
-- [ ] The tag `v2.57.5` after the merge; the owner publishes the draft;
-  snowsky-disc-boot's catalog names 2.57.5.
+- [x] The tag `v2.57.5` on the merge `91167c0` (PR #5): the draft rebuilt by
+  CI matched the record (`disc-server-2.57.5.zip`, 838,153 bytes), its notes
+  beginning with the CHANGELOG's section. snowsky-disc-boot's catalog names
+  2.57.5 as the default (its PR #20).
+- [ ] The owner publishes the draft, after which the catalog's address
+  answers.
 
 ## Carried over
 
