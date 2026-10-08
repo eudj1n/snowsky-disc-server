@@ -111,7 +111,7 @@ it. Pushing the tag `v<version>` runs
 `.github/workflows/release.yml`: the synthetic tests, the toolchain from its recipe, the MIPS
 build, `release.py build` and `check` (the package must be the recorded one), then a draft
 release the owner publishes; snowsky-disc-boot's catalog then names the package by its address
-and digest. `.github/workflows/ci.yml` builds the same package on every push as a 14-day
+and digest. `.github/workflows/ci.yml` builds the same package for each pull request and each merge into `2.x` (not for a change of documents alone) as a 14-day
 artifact (`<firmware>.0-ci.<commit>`, never a release). No secrets; actions pinned by commit.
 
 ## The service package
