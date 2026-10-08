@@ -104,7 +104,10 @@ python3 scripts/release.py build --version 2.57.1 --output work/release-2.57.1/d
 python3 scripts/release.py record --version 2.57.1 --dist work/release-2.57.1/dist --accepted "<what ran>"
 ```
 
-`record` writes `releases/<version>.json` once. Pushing the tag `v<version>` runs
+`record` writes `releases/<version>.json` once. The release also dates its section of
+[CHANGELOG.md](../CHANGELOG.md) (`## [<version>] — <yyyy-mm-dd>`), what changes for a user;
+`check --notes` puts that section first in the release's notes and refuses a release without
+it. Pushing the tag `v<version>` runs
 `.github/workflows/release.yml`: the synthetic tests, the toolchain from its recipe, the MIPS
 build, `release.py build` and `check` (the package must be the recorded one), then a draft
 release the owner publishes; snowsky-disc-boot's catalog then names the package by its address
