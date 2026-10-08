@@ -424,8 +424,8 @@ started as the package under `disc-boot`, the integration checks on it.
   CI matched the record (`disc-server-2.57.5.zip`, 838,153 bytes), its notes
   beginning with the CHANGELOG's section. snowsky-disc-boot's catalog names
   2.57.5 as the default (its PR #20).
-- [ ] The owner publishes the draft, after which the catalog's address
-  answers.
+- [x] The owner published the draft (2026-10-08); the catalog's address
+  answers with the recorded digest (`26d19b4c…`).
 
 ## Carried over
 
