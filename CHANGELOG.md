@@ -12,6 +12,9 @@ Entries stay short; how and why it was done is in the [plan](docs/plan.md).
   runs beside the server (from its next release on), with whether each runs.
 - The server finds its own status where the coming boot layer keeps it, and
   where the boot layer installed on your player keeps it now.
+- With disc-health installed, the manager's "System" shows the battery, the
+  free space in the player and on the card, and the card errors, crashes and
+  restarts of the interface since power-on.
 
 ## [2.57.5] — 2026-10-08
 
