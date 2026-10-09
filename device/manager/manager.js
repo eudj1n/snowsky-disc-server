@@ -25,6 +25,8 @@ const TEXT = {
     reasons: { default: 'by default', key: 'a key held at power-on', 'boot-loop': 'after failed starts', recovery: 'installing from the card' }, ports: 'Ports', card: 'Card', cardIn: 'in the player', cardOut: 'not available',
     portsValue: 'apps {apps}, manager {manager}', notBoot: 'not under the boot layer', confirmed: 'confirmed', tentative: 'not confirmed yet',
     serviceOff: 'autostart off', serviceFailed: 'stopped after a failure', serviceStopped: 'not running',
+    battery: 'Battery', space: 'Free space', spaceValue: 'player {data}, card {card}', noCardSpace: 'no card',
+    since: 'Since power-on', sinceValue: 'card errors {cards}, crashes {fatal}, restarts of the interface {restarts}',
     updateTitle: 'Server updates',
     updateHelp: 'A server release as a .update file. It is checked as it arrives and kept beside the running version; switching is a separate step that restarts the server, not the music. Uploading replaces the version kept for a return.',
     upload: 'Upload', checking: 'Checking the signature and the files…',
@@ -64,6 +66,8 @@ const TEXT = {
     reasons: { default: 'по умолчанию', key: 'кнопкой при включении', 'boot-loop': 'после неудачных запусков', recovery: 'установка с карты' }, ports: 'Порты', card: 'Карта', cardIn: 'в плеере', cardOut: 'недоступна',
     portsValue: 'приложения {apps}, менеджер {manager}', notBoot: 'не под слоем загрузки', confirmed: 'подтверждён', tentative: 'ещё не подтверждён',
     serviceOff: 'автозапуск выключен', serviceFailed: 'остановлен после сбоя', serviceStopped: 'не работает',
+    battery: 'Батарея', space: 'Свободно', spaceValue: 'в плеере {data}, на карте {card}', noCardSpace: 'карты нет',
+    since: 'С включения', sinceValue: 'ошибок карты {cards}, сбоев {fatal}, перезапусков интерфейса {restarts}',
     updateTitle: 'Обновления сервера',
     updateHelp: 'Выпуск сервера в виде файла .update. Он проверяется по мере загрузки и хранится рядом с работающей версией; переключение — отдельный шаг, который перезапускает сервер, но не музыку. Загрузка заменяет версию, сохранённую для возврата.',
     upload: 'Загрузить', checking: 'Проверка подписи и файлов…',
@@ -114,7 +118,7 @@ const say = (text, bad = false, where = 'apps-status') => {
   line.className = bad ? 'status bad' : 'status'
 }
 const size = (bytes) => {
-  const units = language === 'ru' ? ['Б', 'КБ', 'МБ'] : ['B', 'KB', 'MB']
+  const units = language === 'ru' ? ['Б', 'КБ', 'МБ', 'ГБ'] : ['B', 'KB', 'MB', 'GB']
   let value = bytes, unit = 0
   while (value >= 1000 && unit < units.length - 1) { value /= 1000; unit++ }
   return `${value.toLocaleString(language, { maximumFractionDigits: unit ? 1 : 0 })} ${units[unit]}`
@@ -236,6 +240,21 @@ function renderFacts() {
   }
   fact(list, t('ports'), t('portsValue', about.ports))
   fact(list, t('card'), about.card?.owned ? t('cardIn') : t('cardOut'))
+  healthFacts(list, boot?.services?.['disc-health']?.report)
+}
+// disc-health's latest reading, when that service reports (snowsky-disc-boot docs/dev/health.md): the
+// battery, the free space and what went wrong since its start. Nothing when it is not installed.
+function healthFacts(list, report) {
+  const latest = report?.latest
+  if (!latest) return
+  const battery = latest.battery
+  if (battery && Number.isFinite(battery.percent))
+    fact(list, t('battery'), [`${battery.percent} %`, Number.isFinite(battery.celsius) && `${battery.celsius.toLocaleString(language)} °C`]
+      .filter(Boolean).join(' · '))
+  const space = latest.space
+  if (space?.data) fact(list, t('space'), t('spaceValue', { data: size(space.data.freeKB * 1024), card: space.card ? size(space.card.freeKB * 1024) : t('noCardSpace') }))
+  const since = report.sinceStart
+  if (since) fact(list, t('since'), t('sinceValue', { cards: since.cardErrors ?? 0, fatal: since.fatalSignals ?? 0, restarts: since.pairRestarts ?? 0 }))
 }
 // What a service's state says on its row: running (and whether confirmed), off, stopped after a failure.
 function serviceMarks(status) {
