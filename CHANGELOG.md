@@ -8,6 +8,9 @@ Entries stay short; how and why it was done is in the [plan](docs/plan.md).
 
 ## [Unreleased]
 
+- "Player software" says where its packages are installed and removed: in the
+  boot menu on the player, at power-on.
+
 - "Player software" in the manager also lists the services the boot layer
   runs beside the server (from its next release on), with whether each runs.
 - The server finds its own status where the coming boot layer keeps it, and

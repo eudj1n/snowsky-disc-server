@@ -443,6 +443,9 @@ disc-network), each with its own status.
   both APIs, the services, a report over 4 KiB left out),
   `test_package_build` against boot API 2 and the pinned API 1 revision;
   the page checked with stand-in answers (light, dark, phone, desktop).
+- [x] "Player software" stays read-only and says where its packages are
+  installed and removed: the boot menu at power-on, its Packages screen
+  (snowsky-disc-boot's plan, stage 7, the owner's decision 8 of 2026-10-09).
 - [ ] The package names the `controller` role with `bootApi` 2 once boot
   API 2 is the released boot layer; until then it names API 1's `service`
   role (`build_package.py`), which both boot layers run (API 2 as its

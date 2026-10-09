@@ -48,7 +48,8 @@ old one first, so a failed installation leaves the card as it was.
 
 "Player software" names what the boot layer runs: this server, the menu, the
 interfaces installed beside the player's own and the services, background
-programs beside the server (whether each runs, or why not). "Server updates" takes a
+programs beside the server (whether each runs, or why not). They are installed
+and removed in the boot menu on the player, at power-on. "Server updates" takes a
 server release as a signed `.update` file, checks it as it arrives, keeps it
 beside the running version and restarts into it on request; the new version is
 confirmed after three minutes of steady work.
