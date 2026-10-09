@@ -495,5 +495,21 @@ disc-network), each with its own status.
 
 ## Later
 
+- The page as the player's dashboard and package manager (owner, 2026-10-10;
+  to discuss after the boot layer's current packages are debugged). Today
+  one column of six sections under "Apps". Proposed (with a live mock on the
+  owner's player's data, https://claude.ai/artifact/5HDjdkiYbfqFaFrGLx1fp5):
+  Overview (battery, space, Wi-Fi, what runs, what needs attention),
+  Programs (interfaces, services, apps and the system in groups: versions,
+  state, on and off, removal, updates over Wi-Fi), Wi-Fi (known networks, in
+  range, a password typed on the phone, forget), Player (the interface at
+  start, the time zone: stock's zone data still has Kazakhstan at +06) and
+  Diagnostics (disc-health's history, events, a report for support). Open
+  decisions: navigation by tasks (five sections) or the owner's tabs by role
+  (apps, services, controller, UI, status, networks, themes); built with
+  Disc Player's components and shipped in this package; the first stage;
+  a channel for requests from the server to a service (disc-network's
+  networks); whether the page may set the time zone (a FiiO file); what
+  themes would be. Each section only once it works.
 - The public repository (default branch `2.x`) with its Actions.
 
