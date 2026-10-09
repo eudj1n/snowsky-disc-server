@@ -27,6 +27,7 @@ const TEXT = {
     serviceOff: 'autostart off', serviceFailed: 'stopped after a failure', serviceStopped: 'not running',
     battery: 'Battery', space: 'Free space', spaceValue: 'player {data}, card {card}', noCardSpace: 'no card',
     since: 'Since power-on', sinceValue: 'card errors {cards}, crashes {fatal}, restarts of the interface {restarts}',
+    networks: 'Wi-Fi networks', networkHere: '{name} (connected)',
     updateTitle: 'Server updates',
     updateHelp: 'A server release as a .update file. It is checked as it arrives and kept beside the running version; switching is a separate step that restarts the server, not the music. Uploading replaces the version kept for a return.',
     upload: 'Upload', checking: 'Checking the signature and the files…',
@@ -68,6 +69,7 @@ const TEXT = {
     serviceOff: 'автозапуск выключен', serviceFailed: 'остановлен после сбоя', serviceStopped: 'не работает',
     battery: 'Батарея', space: 'Свободно', spaceValue: 'в плеере {data}, на карте {card}', noCardSpace: 'карты нет',
     since: 'С включения', sinceValue: 'ошибок карты {cards}, сбоев {fatal}, перезапусков интерфейса {restarts}',
+    networks: 'Сети Wi-Fi', networkHere: '{name} (подключена)',
     updateTitle: 'Обновления сервера',
     updateHelp: 'Выпуск сервера в виде файла .update. Он проверяется по мере загрузки и хранится рядом с работающей версией; переключение — отдельный шаг, который перезапускает сервер, но не музыку. Загрузка заменяет версию, сохранённую для возврата.',
     upload: 'Загрузить', checking: 'Проверка подписи и файлов…',
@@ -241,6 +243,14 @@ function renderFacts() {
   fact(list, t('ports'), t('portsValue', about.ports))
   fact(list, t('card'), about.card?.owned ? t('cardIn') : t('cardOut'))
   healthFacts(list, boot?.services?.['disc-health']?.report)
+  networkFacts(list, boot?.services?.['disc-network']?.report)
+}
+// disc-network's networks by name, the connected one marked (snowsky-disc-boot docs/dev/network.md); its
+// report never names a key. Nothing when it is not installed or keeps none.
+function networkFacts(list, report) {
+  const names = (report?.networks ?? []).map((n) => n.name).filter((n) => typeof n === 'string')
+  if (!names.length) return
+  fact(list, t('networks'), names.map((name) => (name === report.connected ? t('networkHere', { name }) : name)).join(', '))
 }
 // disc-health's latest reading, when that service reports (snowsky-disc-boot docs/dev/health.md): the
 // battery, the free space and what went wrong since its start. Nothing when it is not installed.
