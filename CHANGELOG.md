@@ -15,6 +15,8 @@ Entries stay short; how and why it was done is in the [plan](docs/plan.md).
 - With disc-health installed, the manager's "System" shows the battery, the
   free space in the player and on the card, and the card errors, crashes and
   restarts of the interface since power-on.
+- With disc-network installed, it also lists the Wi-Fi networks the player
+  keeps, by name, the connected one marked.
 
 ## [2.57.5] — 2026-10-08
 

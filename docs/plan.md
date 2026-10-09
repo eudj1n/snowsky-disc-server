@@ -447,6 +447,10 @@ disc-network), each with its own status.
   API 2 is the released boot layer; until then it names API 1's `service`
   role (`build_package.py`), which both boot layers run (API 2 as its
   controller), so one package serves players of either.
+- [x] disc-network's networks in the manager's "System": the names its
+  report gives (never a key), the connected one marked; nothing when it is
+  not installed or keeps none (snowsky-disc-boot `docs/dev/network.md`).
+  Checked with stand-in answers (light, dark, phone, desktop).
 - [x] disc-health's report in the diagnostics: `/api/about` carries it
   (above), and the manager's "System" shows its latest reading when it is
   installed: the battery (percent, temperature), the free space of the player
