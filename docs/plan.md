@@ -427,6 +427,28 @@ started as the package under `disc-boot`, the integration checks on it.
 - [x] The owner published the draft (2026-10-08); the catalog's address
   answers with the recorded digest (`26d19b4c…`).
 
+## Stage 5 — the boot layer's API 2 (owner, 2026-10-09)
+
+snowsky-disc-boot's boot API 2 (its plan, stage 7) makes this server the
+`controller` and runs background `service` packages beside it (disc-health,
+disc-network), each with its own status.
+
+- [x] The server reads its status as the controller (`controller.json`,
+  else `service.json`: boot API 1, and API 2 while this package names API
+  1's service role), for the update view and `/api/about`, whose `boot`
+  gains `controller` (`service` stays, the same) and `services`, each
+  service's status and its own report (`status.json`, at most 4 KiB); the
+  manager's "Player software" lists the services with whether each runs,
+  is off or stopped after a failure. `test_gateway` (the status files of
+  both APIs, the services, a report over 4 KiB left out),
+  `test_package_build` against boot API 2 and the pinned API 1 revision;
+  the page checked with stand-in answers (light, dark, phone, desktop).
+- [ ] The package names the `controller` role with `bootApi` 2 once boot
+  API 2 is the released boot layer; until then it names API 1's `service`
+  role (`build_package.py`), which both boot layers run (API 2 as its
+  controller), so one package serves players of either.
+- [ ] disc-health's report in the diagnostics, with disc-health.
+
 ## Carried over
 
 - [x] The trash refuses the card's `Apps` folder and what is in it, as it

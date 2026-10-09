@@ -203,7 +203,9 @@ class PackageBuildTests(unittest.TestCase):
             self.assertEqual((about['boot']['decision']['reason'], about['boot']['service']['name'],
                               about['boot']['service']['version'], about['boot']['service']['state']),
                              ('recovery', 'disc-server', '7', 'confirmed'))
-            self.assertEqual(json.loads((player/'tmp/sdcard/.disc/boot/result.json').read_text())['roles']['service']['installed'], True)
+            # The controller under boot API 2, the service under API 1 (the pinned boot revision may be either).
+            roles = json.loads((player/'tmp/sdcard/.disc/boot/result.json').read_text())['roles']
+            self.assertEqual(roles.get('controller', roles.get('service'))['installed'], True)
             self.assertEqual(about['ports'], {'apps': port, 'manager': manager_port})
             manager = http.client.HTTPConnection('127.0.0.1', manager_port, timeout=5)
             manager.request('GET', '/', headers={'Host': f'127.0.0.1:{manager_port}'})

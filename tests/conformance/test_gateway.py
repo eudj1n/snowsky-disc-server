@@ -1537,8 +1537,26 @@ class GatewayTests(unittest.TestCase):
         self.assertGreater((status/'ui.json').stat().st_size, 4096)
         self.assertEqual(len(json.loads(self.http('GET', '/api/about')[1])['boot']['ui']['installed']), 16)
         self.assertTrue(json.loads(self.http('GET', '/api/about')[1])['service']['supervised'], 'the boot layer supervises it')
+        self.assertEqual(json.loads(self.http('GET', '/api/about')[1])['boot']['services'], {}, 'no service of boot API 2')
         (status/'service.json').write_text('{"state": confirm')
         self.assertIsNone(json.loads(self.http('GET', '/api/about')[1])['boot']['service'])
+        # Boot API 2: this server is the controller (controller.json first) and services run beside it,
+        # each with the boot layer's status and its own report (at most 4 KiB).
+        (status/'controller.json').write_text('{"schema":1,"role":"controller","state":"confirmed","name":"disc-server","version":"2"}\n')
+        (status/'service/disc-health').mkdir(parents=True)
+        (status/'service/disc-health.json').write_text('{"schema":1,"role":"service","state":"confirmed","name":"disc-health",'
+                                                        '"version":"1","autostart":true}\n')
+        (status/'service/disc-health/status.json').write_text('{"battery":87}\n')
+        (status/'service/disc-network.json').write_text('{"schema":1,"role":"service","state":"disabled","name":"disc-network","autostart":false}\n')
+        (status/'service/disc-network').mkdir()
+        (status/'service/disc-network/status.json').write_text('{"x":"' + 'y' * 4100 + '"}\n')
+        (status/'service/Bad Name.json').write_text('{}\n')
+        boot = json.loads(self.http('GET', '/api/about')[1])['boot']
+        self.assertEqual((boot['controller']['version'], boot['service']['version']), ('2', '2'), 'the same under its earlier name')
+        self.assertEqual(list(boot['services']), ['disc-health', 'disc-network'])
+        self.assertEqual(boot['services']['disc-health'], dict(status=dict(schema=1, role='service', state='confirmed', name='disc-health',
+                                                                           version='1', autostart=True), report=dict(battery=87)))
+        self.assertEqual((boot['services']['disc-network']['status']['state'], boot['services']['disc-network']['report']), ('disabled', None))
         for option in ('--ready-file', '--boot-status'):
             with self.subTest(option=option):
                 result = subprocess.run([*SERVICE_COMMAND, option, 'relative/path'], capture_output=True, timeout=10)
@@ -1885,6 +1903,17 @@ printf '{"ok":true,"name":"disc-server","version":"x","bytes":1}\\n'
     def exits(self):
         self.assertEqual(self.proc.wait(timeout=10), 0, 'the server exits for boot to apply its request')
         self.proc = None
+
+    def test_under_boot_api_2_the_server_reads_its_status_as_the_controller(self):
+        www, _ = self.publish()
+        boot, options = self.boot_layer(version='3')
+        # Boot API 2 with a controller's package: controller.json only; with this package of API 1, both.
+        (boot/'status/service.json').rename(boot/'status/controller.json')
+        self.start(www, extra=options)
+        running = json.loads(self.manager('GET', '/api/update')[1])['running']
+        self.assertEqual((running['name'], running['version'], running['confirmed']), ('disc-server', '3', True))
+        (boot/'status/service.json').write_text((boot/'status/controller.json').read_text().replace('"3"', '"1"'))
+        self.assertEqual(json.loads(self.manager('GET', '/api/update')[1])['running']['version'], '3', 'controller.json first')
 
     def test_the_manager_stages_an_update_and_asks_boot_to_switch(self):
         www, _ = self.publish()

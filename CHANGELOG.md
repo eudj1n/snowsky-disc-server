@@ -6,6 +6,13 @@ for FiiO's 2.57. Each published release is a `v<version>` tag with its package
 on the [releases page](https://github.com/eudj1n/snowsky-disc-server/releases).
 Entries stay short; how and why it was done is in the [plan](docs/plan.md).
 
+## [Unreleased]
+
+- "Player software" in the manager also lists the services the boot layer
+  runs beside the server (from its next release on), with whether each runs.
+- The server finds its own status where the coming boot layer keeps it, and
+  where the boot layer installed on your player keeps it now.
+
 ## [2.57.5] — 2026-10-08
 
 - The boot layer's installer now puts

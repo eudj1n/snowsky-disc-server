@@ -21,6 +21,7 @@
 #include "manager_assets.h"
 #include <arpa/inet.h>
 #include <ctype.h>
+#include <dirent.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/statvfs.h>
@@ -1892,32 +1893,81 @@ static int catalog(struct mg_connection *c, server *s, int stream) {
  * page, the card and its database, the boot layer's status and the newest
  * service messages. Read-only; names no credential, track or user file. */
 /* A small JSON object file as it is, or null. */
-/* A boot status file, at most 8 KiB (snowsky-disc-boot: sixteen interfaces with their project pages). */
-static void about_json_file(const char *path, disc_buffer *b) {
+/* A boot status file, at most limit bytes (snowsky-disc-boot: 8 KiB, sixteen interfaces with their
+ * project pages; a service's own report 4 KiB). */
+static void about_json_limited(const char *path, disc_buffer *b, off_t limit) {
     char text[8193];
     ssize_t n = -1;
     int fd = path ? open(path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC) : -1;
     struct stat st;
-    if (fd >= 0 && !fstat(fd, &st) && S_ISREG(st.st_mode) && st.st_size > 1 && st.st_size <= 8192) n = read(fd, text, (size_t)st.st_size);
+    if (fd >= 0 && !fstat(fd, &st) && S_ISREG(st.st_mode) && st.st_size > 1 && st.st_size <= limit && st.st_size <= 8192)
+        n = read(fd, text, (size_t)st.st_size);
     if (fd >= 0) close(fd);
     while (n > 0 && (text[n - 1] == '\n' || text[n - 1] == ' ')) n--;
     if (n > 1 && disc_json_object(text, (size_t)n)) disc_buffer_put(b, text, (size_t)n);
     else disc_buffer_text(b, "null");
 }
-/* The boot layer's decision, this service's role (its package, slot, confirmation) and the ui and
- * menu roles' status, or null. */
+static void about_json_file(const char *path, disc_buffer *b) { about_json_limited(path, b, 8192); }
+/* This server's status from the boot layer: controller.json under boot API 2; service.json under
+ * boot API 1, and under API 2 while this package names API 1's service role (snowsky-disc-boot
+ * docs/dev/contract.md, "From boot API 1"). The first that is there, or NULL. */
+static const char *boot_role_file(server *s, char *path, size_t capacity) {
+    static const char *const names[] = {"controller.json", "service.json"};
+    struct stat st;
+    for (size_t k = 0; s->boot_status && k < sizeof(names) / sizeof(*names); k++)
+        if (snprintf(path, capacity, "%s/%s", s->boot_status, names[k]) < (int)capacity && !lstat(path, &st)) return path;
+    return NULL;
+}
+static int name_order(const void *a, const void *b) { return strcmp((const char *)a, (const char *)b); }
+/* Boot API 2's services, by name (at most 16): the boot layer's status of each
+ * (service/<name>.json) and what the service reports itself (service/<name>/status.json, at most
+ * 4 KiB), each null when absent or not strict JSON. */
+static void about_services(server *s, disc_buffer *b) {
+    char dir[256], path[320], names[16][33];
+    int n = 0;
+    DIR *d = snprintf(dir, sizeof(dir), "%s/service", s->boot_status) < (int)sizeof(dir) ? opendir(dir) : NULL;
+    struct dirent *e;
+    while (d && n < 16 && (e = readdir(d))) {
+        size_t length = strlen(e->d_name);
+        if (length < 6 || length > 37 || strcmp(e->d_name + length - 5, ".json")) continue;
+        memcpy(names[n], e->d_name, length - 5);
+        names[n][length - 5] = 0;
+        if (strspn(names[n], "abcdefghijklmnopqrstuvwxyz0123456789-") == length - 5) n++;
+    }
+    if (d) closedir(d);
+    qsort(names, (size_t)n, sizeof(names[0]), name_order);
+    disc_buffer_text(b, "{");
+    for (int k = 0; k < n; k++) {
+        disc_buffer_text(b, k ? ",\"" : "\"");
+        disc_buffer_text(b, names[k]);
+        disc_buffer_text(b, "\":{\"status\":");
+        about_json_file(snprintf(path, sizeof(path), "%s/service/%s.json", s->boot_status, names[k]) < (int)sizeof(path) ? path : NULL, b);
+        disc_buffer_text(b, ",\"report\":");
+        about_json_limited(snprintf(path, sizeof(path), "%s/service/%s/status.json", s->boot_status, names[k]) < (int)sizeof(path) ? path : NULL,
+                           b, 4096);
+        disc_buffer_text(b, "}");
+    }
+    disc_buffer_text(b, "}");
+}
+/* The boot layer's decision, this server's role (its package, slot, confirmation), the ui and menu
+ * roles' status and the services', or null. */
 static void about_boot(server *s, disc_buffer *b) {
     if (!s->boot_status) { disc_buffer_text(b, "null"); return; }
     char path[256];
     disc_buffer_text(b, "{\"decision\":");
     about_json_file(snprintf(path, sizeof(path), "%s/boot.json", s->boot_status) < (int)sizeof(path) ? path : NULL, b);
+    disc_buffer_text(b, ",\"controller\":");
+    about_json_file(boot_role_file(s, path, sizeof(path)), b);
+    /* The same under its earlier name, for the clients of boot API 1's contract. */
     disc_buffer_text(b, ",\"service\":");
-    about_json_file(snprintf(path, sizeof(path), "%s/service.json", s->boot_status) < (int)sizeof(path) ? path : NULL, b);
+    about_json_file(boot_role_file(s, path, sizeof(path)), b);
     /* The other roles: the installed interfaces (diskOS and the like) with this boot's choice, the menu. */
     disc_buffer_text(b, ",\"ui\":");
     about_json_file(snprintf(path, sizeof(path), "%s/ui.json", s->boot_status) < (int)sizeof(path) ? path : NULL, b);
     disc_buffer_text(b, ",\"menu\":");
     about_json_file(snprintf(path, sizeof(path), "%s/menu.json", s->boot_status) < (int)sizeof(path) ? path : NULL, b);
+    disc_buffer_text(b, ",\"services\":");
+    about_services(s, b);
     disc_buffer_text(b, "}");
 }
 /* An app's version as its optional app.json says ({"version":"<text>"}), for the diagnostics. */
@@ -2442,7 +2492,7 @@ static int app_remove_route(struct mg_connection *c, server *s, const char *name
     pthread_mutex_lock(&s->lock); s->manager_busy = 0; pthread_mutex_unlock(&s->lock);
     return code ? code : apps_route(c, s);
 }
-/* The boot layer's status of this service's role (service.json, snowsky-disc-boot docs/contract.md). */
+/* The boot layer's status of this server's role (boot_role_file, snowsky-disc-boot docs/dev/contract.md). */
 typedef struct {
     int present, confirmed, previous;
     char name[33], version[65], slot[2], state[16], last_request[200];
@@ -2451,7 +2501,7 @@ typedef struct {
 static void read_boot_role(server *s, boot_role *r) {
     memset(r, 0, sizeof(*r));
     char path[256], text[4097];
-    if (!s->boot_status || snprintf(path, sizeof(path), "%s/service.json", s->boot_status) >= (int)sizeof(path)) return;
+    if (!boot_role_file(s, path, sizeof(path))) return;
     int fd = open(path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
     ssize_t n = fd >= 0 ? read(fd, text, sizeof(text) - 1) : -1;
     if (fd >= 0) close(fd);

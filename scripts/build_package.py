@@ -175,8 +175,11 @@ def build(binary=None, output=None, version=None, engineering=False, profile_ver
     # The apps this server offers, by reference: the installer stages them on the card.
     shutil.copyfile(APPS_CATALOG, folder/'catalog/apps.json')
     (folder/'catalog/apps.json').chmod(0o644)
+    # The service role of boot API 1, which boot API 2 runs as its controller (snowsky-disc-boot
+    # docs/dev/contract.md, "From boot API 1"): one package for players of either boot layer until
+    # boot API 2 is the released one; then it names the controller's role with bootApi 2.
     manifest = package.describe(folder, NAME, version, 'service', 'bin/run', ready=30, profiles=[profile['version']], arch=arch,
-                                homepage=HOMEPAGE)
+                                homepage=HOMEPAGE, boot_api=1)
     package.check(folder, 'service', profile['version'], arch=arch)
     archive = package.zip_package(folder, output/f'{NAME}-{version}.zip')
     signed = update_file.pack(folder, sign_key, output/f'{NAME}-{version}.update') if sign_key else None

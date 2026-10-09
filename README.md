@@ -46,8 +46,9 @@ installed apps and opens the chosen one at the player's address
 after the app; installing replaces an app of the same name, written beside the
 old one first, so a failed installation leaves the card as it was.
 
-"Player software" names what the boot layer runs: this server, the menu and
-the interfaces installed beside the player's own. "Server updates" takes a
+"Player software" names what the boot layer runs: this server, the menu, the
+interfaces installed beside the player's own and the services, background
+programs beside the server (whether each runs, or why not). "Server updates" takes a
 server release as a signed `.update` file, checks it as it arrives, keeps it
 beside the running version and restarts into it on request; the new version is
 confirmed after three minutes of steady work.
