@@ -161,10 +161,15 @@ combined image the service belongs to, "0.9.0" for combined-009),"build" (the so
 https://github.com/eudj1n/snowsky-disc-server),"api","uptime" (s),
 "supervised" (true under the boot layer)},"image":null (the combined
 images' identity file; kept for clients),
-"boot":{"decision":<the boot layer's boot.json>,"service":<its service.json:
-the package's name and version, the slot, confirmed or not, failures, the
-last request>,"ui":<its ui.json: the installed interfaces and this boot's choice>,
-"menu":<its menu.json>} (snowsky-disc-boot `docs/contract.md`, "Status"; `--boot-status
+"boot":{"decision":<the boot layer's boot.json>,"controller":<this server's
+status: controller.json under boot API 2, else service.json (boot API 1, and API 2
+while this package names API 1's service role): the package's name and version, the
+slot, confirmed or not, failures, the last request>,"service":<the same, its earlier
+name>,"ui":<its ui.json: the installed interfaces and this boot's choice>,
+"menu":<its menu.json>,"services":{"<name>":{"status":<the boot layer's
+service/<name>.json: state, version, autostart>,"report":<the service's own
+service/<name>/status.json, at most 4 KiB>}} (boot API 2's services by name, at most
+16; {} without them)} (snowsky-disc-boot `docs/dev/contract.md`, "Status"; `--boot-status
 DIR`, each part null when absent, over 8 KiB or not strict JSON; the whole null outside
 the boot layer),
 "page":{"source":"card"|null,"app","version","homepage" (the served app's, from its app.json:

@@ -64,7 +64,7 @@ paths:
       description: Bodyless GET without a query. Versions and the source commit, the image's identity, which release serves the page, the card, the database facts, the supervisor's restarts and the newest service messages; no credential, track or user file.
       responses:
         '200':
-          description: "{service:{name, version, build, api, uptime, supervised (true under the boot layer)}, image (always null), boot:{decision, service} (the boot layer's boot.json and service.json, or null outside it), ports:{apps, manager} (in effect), page:{source, release}, card:{owned}, database:{state, schema, bytes, plays, records, trash, writes:{failed, lastFailure, lastSuccess, reason}}, restarts:[] (always empty), log:[{t, m}]}"
+          description: "{service:{name, version, build, api, uptime, supervised (true under the boot layer)}, image (always null), boot:{decision, controller, service (the same, its earlier name), ui, menu, services:{<name>:{status, report}}} (the boot layer's boot.json, this server's controller.json or else service.json, ui.json, menu.json, and each service's status and own status.json; or null outside it), ports:{apps, manager} (in effect), page:{source, release}, card:{owned}, database:{state, schema, bytes, plays, records, trash, writes:{failed, lastFailure, lastSuccess, reason}}, restarts:[] (always empty), log:[{t, m}]}"
           content:
             application/json:
               schema: { type: object, required: [service, image, page, card, database, restarts, log] }

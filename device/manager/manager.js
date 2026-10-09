@@ -24,6 +24,7 @@ const TEXT = {
     modes: { platform: 'with packages', stock: "the player's own only" },
     reasons: { default: 'by default', key: 'a key held at power-on', 'boot-loop': 'after failed starts', recovery: 'installing from the card' }, ports: 'Ports', card: 'Card', cardIn: 'in the player', cardOut: 'not available',
     portsValue: 'apps {apps}, manager {manager}', notBoot: 'not under the boot layer', confirmed: 'confirmed', tentative: 'not confirmed yet',
+    serviceOff: 'autostart off', serviceFailed: 'stopped after a failure', serviceStopped: 'not running',
     updateTitle: 'Server updates',
     updateHelp: 'A server release as a .update file. It is checked as it arrives and kept beside the running version; switching is a separate step that restarts the server, not the music. Uploading replaces the version kept for a return.',
     upload: 'Upload', checking: 'Checking the signature and the files…',
@@ -62,6 +63,7 @@ const TEXT = {
     modes: { platform: 'с пакетами', stock: 'только штатное' },
     reasons: { default: 'по умолчанию', key: 'кнопкой при включении', 'boot-loop': 'после неудачных запусков', recovery: 'установка с карты' }, ports: 'Порты', card: 'Карта', cardIn: 'в плеере', cardOut: 'недоступна',
     portsValue: 'приложения {apps}, менеджер {manager}', notBoot: 'не под слоем загрузки', confirmed: 'подтверждён', tentative: 'ещё не подтверждён',
+    serviceOff: 'автозапуск выключен', serviceFailed: 'остановлен после сбоя', serviceStopped: 'не работает',
     updateTitle: 'Обновления сервера',
     updateHelp: 'Выпуск сервера в виде файла .update. Он проверяется по мере загрузки и хранится рядом с работающей версией; переключение — отдельный шаг, который перезапускает сервер, но не музыку. Загрузка заменяет версию, сохранённую для возврата.',
     upload: 'Загрузить', checking: 'Проверка подписи и файлов…',
@@ -221,7 +223,8 @@ function projectLink(homepage) {
 function renderFacts() {
   const list = $('facts'); list.replaceChildren()
   // The package the boot layer runs names the server; the binary itself knows only its build.
-  const service = about.service, boot = about.boot, role = boot?.service
+  // Boot API 2 names this server's role controller; API 1 named it service.
+  const service = about.service, boot = about.boot, role = boot?.controller ?? boot?.service
   $('server').replaceChildren(role?.name ? [role.name, role.version].filter(Boolean).join(' ') : t('build', { build: service.build }))
   fact(list, t('server'), t('build', { build: service.build }))
   if (!boot) fact(list, t('boot'), t('notBoot'))
@@ -234,12 +237,22 @@ function renderFacts() {
   fact(list, t('ports'), t('portsValue', about.ports))
   fact(list, t('card'), about.card?.owned ? t('cardIn') : t('cardOut'))
 }
+// What a service's state says on its row: running (and whether confirmed), off, stopped after a failure.
+function serviceMarks(status) {
+  if (!status) return []
+  if (status.state === 'disabled') return [t('serviceOff')]
+  if (status.state === 'failed') return [t('serviceFailed')]
+  if (['starting', 'ready', 'confirmed', 'restarting'].includes(status.state))
+    return [t('thisBoot'), !status.confirmed && t('tentative')].filter(Boolean)
+  return [t('serviceStopped')]
+}
 // The boot layer's packages in the player's memory, shown, not managed here (the server's own update
 // is its section): this server, the menu, the interfaces installed beside stock's own (diskOS and the
-// like) and which one this boot runs. A project link where the package or its status names one.
+// like) and which one this boot runs, and the services (boot API 2). A project link where the package
+// or its status names one.
 function renderSoftware() {
   const list = $('software'); list.replaceChildren()
-  const boot = about.boot, role = boot?.service
+  const boot = about.boot, role = boot?.controller ?? boot?.service
   const rows = [{
     name: role?.name || 'disc-server', version: role?.version, homepage: about.service.homepage,
     marks: [role ? (role.confirmed ? t('confirmed') : t('tentative')) : t('notBoot')],
@@ -253,6 +266,8 @@ function renderSoftware() {
         name: entry.name === 'stock' ? t('stockUi') : entry.name, version: entry.version, homepage: entry.homepage,
         marks: [entry.name === running && t('thisBoot'), !entry.confirmed && t('tentative')].filter(Boolean),
       })
+    for (const [name, { status }] of Object.entries(boot.services ?? {}))
+      rows.push({ name: status?.name || name, version: status?.version, homepage: status?.homepage, marks: serviceMarks(status) })
   }
   for (const row of rows) {
     const item = document.createElement('li')
