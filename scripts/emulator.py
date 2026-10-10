@@ -45,7 +45,12 @@ def guest(*args, capture=False):
 
 
 def status():
-    return json.loads(guest('status', capture=True).stdout)
+    """The guest's status; the server's own as "service" also under boot API 2, where boot names it the controller
+    (snowsky-disc-boot 2.57.7), so the scenarios read it the same on either boot layer."""
+    current = json.loads(guest('status', capture=True).stdout)
+    if not current.get('service') and current.get('controller'):
+        current['service'] = current['controller']
+    return current
 
 
 def wait(confirmed=False, limit=None):
