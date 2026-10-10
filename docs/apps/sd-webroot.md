@@ -11,7 +11,7 @@ installation. Anyone can make an app; Disc Player is the default one.
 | Where | What |
 | --- | --- |
 | `Apps/<App>/` on the card | One app: `index.html` and the files it loads; an optional `origins.json` (the app's external origins) and `app.json` (its name, version and project page) |
-| `Apps/Disc Player/` | The default app, served at `/` |
+| `Apps/Disc Player/` | Disc Player, which the installer puts on the card by default (`apps/catalog.json`) |
 | `.disc/catalog/` on the card | The card's override of the reviewed catalogs (below) |
 | `catalog/` in the service package | The reviewed catalogs: `compatibility.json`, `commands.json`, `queries.json`, `store.json`, `hosted.json` |
 
@@ -23,7 +23,8 @@ too; it holds no audio. Everything else the service keeps stays in `.disc`
 
 ## What the service serves
 
-- `/` and `/<path>` are Disc Player's files, `/apps/<App>/` and
+- `/` and `/<path>` are the files of the app chosen in the manager, else of
+  the only app (with neither, `/` redirects to the manager), `/apps/<App>/` and
   `/apps/<App>/<path>` any app's (the name percent-encoded in the address;
   `/apps/<App>` without the slash redirects to it, so relative references
   work). `/api/*`, the WebSocket and the health routes are matched first and
@@ -50,8 +51,8 @@ too; it holds no audio. Everything else the service keeps stays in `.disc`
   labels, a wildcard only as the first label, a port, nothing else; a file
   that breaks one is rejected whole and the app stays same-origin).
 - The card is read only while the player owns it (the mount check); in USB
-  storage mode, or with no card, `/` answers 404 "No app is installed" (the
-  combined images' copy of Disc Player and the embedded page are gone).
+  storage mode, or with no card, `/` redirects to the manager (the combined
+  images' copy of Disc Player and the embedded page are gone).
 - Slow clients: a file streams as long as the client takes at least 16 KiB in
   every 5-second window, up to 120 seconds in all.
 
@@ -60,8 +61,8 @@ too; it holds no audio. Everything else the service keeps stays in `.disc`
 The catalogs say what any app may make the player do. They left the apps in
 combined-009 (the owner's first variant): an app can not widen them.
 
-- The image carries the reviewed catalogs, generated at the candidate build
-  for the image's firmware profile (`scripts/app_bundle.py catalog`).
+- The package carries the reviewed catalogs (`catalog/`), generated for its
+  firmware profile (`scripts/app_bundle.py catalog`).
 - `.disc/catalog/` on the card overrides `queries.json` and `store.json` on
   every image (read-only queries and the service's own collections change
   with the page, not with the firmware) and `commands.json` only on the
@@ -98,7 +99,12 @@ rule of snowsky-disc-boot's `package.json`; the manager links it) and, with
 
 ## Installing
 
-A user copies the app's folder from the zip into `Apps/` on the card and
+The application manager (port 7871) installs an app from its zip, by the same
+rules as `app_bundle.py`, and removes one (service contract). Over the
+network, `Apps/` changes only through the manager (owner, 2026-10-02): the
+trash and stock's folder creation and uploads refuse it.
+
+Without the manager, a user copies the app's folder from the zip into `Apps/` on the card and
 ejects it. The player does not serve the card while a computer has it, so no
 half-copied app is ever served; an interrupted copy is copied again.
 Replacing the folder leaves no stale files; copying over it leaves the old

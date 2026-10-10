@@ -1,5 +1,5 @@
 """The apps this server offers (apps/catalog.json), in the form of snowsky-disc-boot's catalogs
-(its docs/contract.md, "Catalogs"): an app is named by its release zip's SHA-256 and size."""
+(its docs/dev/boot/contract.md, "Catalogs"): an app is named by its release zip's SHA-256 and size."""
 import json
 from pathlib import Path
 import unittest

@@ -3,7 +3,7 @@
 /* The server's updates through the application manager (owner, 2026-10-02): a release's
  * .update file (scripts/update_file.py) is checked as it streams in and written into the
  * boot layer's inactive slot; boot switches to it on request (snowsky-disc-boot
- * docs/contract.md, "Requests from a package"). The format:
+ * docs/dev/boot/contract.md, "Requests from a package"). The format:
  *   "DISCUPD1" | Ed25519 signature over package.json (64) | its length, u32 LE |
  *   package.json | every listed file's bytes, in the manifest's order. */
 #include <stddef.h>

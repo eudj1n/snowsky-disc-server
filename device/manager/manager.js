@@ -245,14 +245,14 @@ function renderFacts() {
   healthFacts(list, boot?.services?.['disc-health']?.report)
   networkFacts(list, boot?.services?.['disc-network']?.report)
 }
-// disc-network's networks by name, the connected one marked (snowsky-disc-boot docs/dev/network.md); its
+// disc-network's networks by name, the connected one marked (snowsky-disc-boot docs/dev/packages/network.md); its
 // report never names a key. Nothing when it is not installed or keeps none.
 function networkFacts(list, report) {
   const names = (report?.networks ?? []).map((n) => n.name).filter((n) => typeof n === 'string')
   if (!names.length) return
   fact(list, t('networks'), names.map((name) => (name === report.connected ? t('networkHere', { name }) : name)).join(', '))
 }
-// disc-health's latest reading, when that service reports (snowsky-disc-boot docs/dev/health.md): the
+// disc-health's latest reading, when that service reports (snowsky-disc-boot docs/dev/packages/health.md): the
 // battery, the free space and what went wrong since its start. Nothing when it is not installed.
 function healthFacts(list, report) {
   const latest = report?.latest

@@ -80,7 +80,7 @@ layout without production code changes. Physical qualification remains separate.
 reviewed SPL layout and bounded USB execution/transfer budgets. The offline plan
 also pins the exact build and transport source files; changing mode, profile or
 input changes its review hash. These fields do not admit arbitrary ROM commands,
-NAND writes or an unreviewed SPL layout. See RAM observation (snowsky-disc-boot `docs/ram-transport.md`).
+NAND writes or an unreviewed SPL layout. See RAM observation (snowsky-disc-boot `docs/dev/usb-boot/ram-transport.md`).
 
 `firmware/installers/v<version>.json` binds firmware, metadata, transport and
 writer policies to the complete image staging layout and budgets. The current
@@ -92,18 +92,18 @@ The installer now also pins `installation_review_sha256`, binding a particular
 reviewed unit's boot/stock/staging evidence, exact images, tool/source/profile
 fingerprints and readback plans. The admission flag alone cannot enable writes.
 A new unit/release/input requires fresh review and a new pin; previous authority
-or device-state confirmation is not inherited. See installation package (snowsky-disc-boot `docs/installation-review.md`)
-and writer transport (snowsky-disc-boot `docs/writer-transport.md`).
+or device-state confirmation is not inherited. See installation package (snowsky-disc-boot `docs/dev/installer/installation-review.md`)
+and writer transport (snowsky-disc-boot `docs/dev/usb-boot/writer-transport.md`).
 
 `firmware/boot/v<version>.json` pins the page policy, observed boot/OTA extents,
 stock selector-script fingerprints and read budget. It never enables writes or
 infers primary boot from malformed/erased selector bytes. Re-review the actual
 bootloader consumer, selector and root arguments for each new release; a reused
-OTA string is not boot-chain compatibility. See boot evidence (snowsky-disc-boot `docs/boot-selection.md`).
+OTA string is not boot-chain compatibility. See boot evidence (snowsky-disc-boot `docs/dev/boot/boot-selection.md`).
 
 `firmware/bootloaders/v<version>.json` separately binds the reviewed captured SPL
 image, acquisition policy, prefix mechanism, exact accepted selector tokens and
-kernel/root argument mapping. The offline checker (snowsky-disc-boot `docs/bootloader-review.md`) validates
+kernel/root argument mapping. The offline checker (snowsky-disc-boot `docs/dev/nand/bootloader-review.md`) validates
 saved records against this review; it does not change the acquisition classifier,
 authorize writing or assert a live mount. The complete current image pin is
 capture-specific, not a guarantee that rootfs version identifies every installed
@@ -115,7 +115,7 @@ reusing this assessment in installation review.
 Native deployment also uses `kernels/v<version>.json`: an independently reviewed
 OTA kernel fingerprint, chip-table/DTB addresses and NAND metadata format, bound
 to the selected rootfs and writer profile. Re-run the
-kernel and partition review (snowsky-disc-boot `docs/nand-kernel-review.md`) for a new release. Passing
+kernel and partition review (snowsky-disc-boot `docs/dev/nand/nand-kernel-review.md`) for a new release. Passing
 the offline checker never admits page reads or writes, and a previous physical
 partition table must not be inferred from a new OTA kernel.
 
@@ -153,7 +153,7 @@ than assuming an unused function is reachable. Confirm important behavior in
 the disposable runtime. Ghidra can resolve binary behavior; it cannot establish
 the owner's NAND identity, bad-block map or successful physical recovery.
 
-The USB diagnostic investigation (snowsky-disc-boot `docs/usb-diagnostics.md`) records stock card/USB
+The USB diagnostic investigation (snowsky-disc-boot `docs/dev/usb-boot/usb-diagnostics.md`) records stock card/USB
 ownership and the vendor serial-number service in the fingerprinted V2.57 player.
 No Ghidra-derived addresses are used by our runtime; new firmware needs renewed
 analysis of changed paths before enabling the engineering profile.
@@ -163,9 +163,12 @@ analysis of changed paths before enabling the engineering profile.
 `.github/workflows/ci.yml` runs on each pull request, on `2.x` after each merge and by hand (not for a change of
 documents alone), with
 read-only repository permission and no firmware secrets. It builds the host C
-service and runs JS plus all synthetic Python conformance tests, including
-profile promotion, image/writer invariants, saved-result parsing and USB console
-lifecycle. These tests use temporary synthetic files, PTYs and loopback servers, not a player or a sibling
+service, checks the manager's script syntax and runs all synthetic Python
+conformance tests: catalogs, profiles, the gateway, the app installer, signed
+updates, the package and the release. Its `mips` job builds the gateway from
+the pinned toolchain and packs it with snowsky-disc-boot at
+`scripts/boot-revision`, as a release does. The image, writer and USB console
+checks went to snowsky-disc-boot with that code (2026-10-02). These tests use temporary synthetic files, PTYs and loopback servers, not a player or a sibling
 checkout. Runner requirements: Python 3.11+, Node with `node:test`, C11 and make.
 
 Firmware integration, image packing and Ghidra remain explicit local checks.
@@ -175,7 +178,4 @@ reference and privately acquired OTA, use disposable volumes, and avoid uploadin
 firmware, private media or decrypted binaries as public artifacts.
 
 Local evidence, including the subsequent USB stage, is recorded in
-[validation](../validation/validation.md). The full Linux host C/service suite has not been
-run locally; the available emulator image lacks a host C compiler. MIPS USB
-fixture tests and Python profile/deployment checks have run under Linux. The
-workflow itself has not been executed by GitHub in this task.
+[validation](../validation/validation.md). The workflows run on GitHub since 2026-10-04.

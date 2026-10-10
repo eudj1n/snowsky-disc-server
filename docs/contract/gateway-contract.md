@@ -244,7 +244,9 @@ re-read before acting on positions, and never invent state.
 ## Static hosting: apps
 
 Since combined-009 an app is a plain folder `Apps/<App>/` on the card:
-Disc Player is served at `/`, any app at `/apps/<App>/`. Files are regular,
+`/` serves the app chosen in the application manager (port 7871, another
+origin) while it is installed, else the only app, else redirects to the
+manager; any app is at `/apps/<App>/`. Files are regular,
 reached without links, `[A-Za-z0-9._-]` names, not hidden, at most six
 folders deep and 4 MiB each, of web types only; HTML is `no-store`,
 content-hashed names are immutable, anything else `no-cache`; a `.gz` twin
@@ -254,13 +256,15 @@ scripts, styles or handlers, and carries no catalogs: the reviewed ones come
 with the image (the card's `.disc/catalog` may override queries and store,
 and commands only on the engineering image) and are read at
 `/api/contract/`. Its own `origins.json` adds external origins to its policy.
-Installation is copying the folder onto the card (USB storage mode or a card
-reader); no image, no NAND write, no service restart. Details, the tooling
+Installation is uploading the app's zip in the manager, which checks and
+unpacks it on the card and swaps it in, or copying the folder onto the card
+(USB storage mode or a card reader); no image, no NAND write, no service
+restart. Details, the tooling
 and the trust model: [Apps on the card](../apps/sd-webroot.md).
 
 ## Limits and budgets
 
-Bounded everything: 8 KiB request headers, eight workers (combined-009), 3-second stock
+Bounded everything: 8 KiB request headers, sixteen workers on the apps' port and two on the manager's (2026-10-03; eight in combined-009), 3-second stock
 connect/write deadlines, one catalog reservation with a 3-second total budget
 and 4 MiB decoded ceiling, one WebSocket owner with about 192 KiB of session
 storage, catalog `max_bytes` per record and `max_body_bytes` per HTTP route in

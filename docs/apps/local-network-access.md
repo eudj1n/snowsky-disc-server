@@ -26,7 +26,7 @@ need. No image with the option was prepared or installed.
   already publishes `ingenic.local`. Safari and iOS have no equivalent yet;
   Firefox has the permission from 153, its mixed-content relaxation is
   unverified.
-- **Outbound relay** (the plan's Stage C) for other browsers and for access
+- **Outbound relay** (snowsky-disc-web plan, Stage C) for other browsers and for access
   from outside the home; **per-device certificates** (the plex.direct
   pattern) for every browser on the LAN, at the cost of TLS on the player
   and a certificate service.

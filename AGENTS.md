@@ -4,8 +4,8 @@ Communicate in Russian; write source documentation and comments in English.
 This repository is **snowsky-disc-server**, the native service gateway of the
 SNOWSKY DISC player: admission, the guarded bridge to the stock protocol
 ports, the store, the apps on the card, the reviewed catalogs and the tools
-around them. It runs as the boot layer's `service` package (sibling
-snowsky-disc-boot, `docs/contract.md`). Browser UI, cloud and voice clients
+around them. It runs as the boot layer's package, its controller under boot
+API 2 (sibling snowsky-disc-boot, `docs/dev/boot/contract.md`). Browser UI, cloud and voice clients
 live in separate projects and consume the contract published here. Read
 docs/plan.md and docs/architecture.md before extending it.
 

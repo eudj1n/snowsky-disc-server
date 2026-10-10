@@ -1,11 +1,19 @@
 # Development guide
 
 Run commands below from the repository root. README is for end users; the
-canonical plan is [plan](plan.md).
+plan of open work is [plan](plan.md); the documents by area are listed in
+[docs/README.md](README.md).
+
+This repository began on 2026-10-02 as a port of snowsky-disc-web at
+`ad96847`, not as a rework of it (owner: the package is released publicly,
+and the old history carries installation evidence, owner observations and
+local paths); the image builder, the boot hook, the USB console and the NAND
+tooling went to snowsky-disc-boot. The default branch is `2.x`, after FiiO's
+firmware line (owner, 2026-10-02), as in snowsky-disc-boot.
 
 This repository builds the native service gateway (`disc-service`) that runs
-on the SNOWSKY DISC player as the boot layer's `service` package
-(snowsky-disc-boot `docs/contract.md`), and the tooling around it: the
+on the SNOWSKY DISC player as the boot layer's package, its controller under
+boot API 2 (snowsky-disc-boot `docs/dev/boot/contract.md`), and the tooling around it: the
 reviewed catalogs, the apps on the card and the disposable-guest acceptance.
 The installed combined images carry the same gateway; their history and
 installation evidence stay in snowsky-disc-web. Every change is verified on
@@ -51,6 +59,11 @@ docker run --rm --network none --entrypoint sh -v "$PWD:/src:ro" \
   snowsky-disc-qemu-ci -c 'cd /src/tests/conformance && python3 -B -m unittest test_app_install'
 ```
 
+CI runs this suite on GitHub's `ubuntu-24.04` runners. Their GCC 13 with
+`-Werror` reports what Apple clang may not (2026-10-04: an array index past
+its lookup loop, `-Werror=array-bounds`), so a change that builds on macOS
+can still fail there. Outside a git checkout the build id is `unknown`.
+
 Host-only diagnostic launch (stock upstream must run on this host):
 
 ```sh
@@ -67,6 +80,10 @@ gateway:
 docker build --platform linux/amd64 -t disc-native-toolchain -f device/Dockerfile.toolchain .
 bash scripts/build.sh mips   # or DISC_TOOLCHAIN_IMAGE=<image> for a reviewed copy
 ```
+
+musl.cc refuses some networks, GitHub's runners among them; the recipe then
+fetches the Internet Archive's capture of the same tarball (`TC_MIRROR`) and
+checks it against the same SHA-256.
 
 The player's Linux 4.4.94 kernel executes floating-point branch delay slots
 from a user-stack trampoline while emulating the FPU, which killed a
@@ -119,10 +136,30 @@ artifact (`<firmware>.0-ci.<commit>`, never a release). No secrets; actions pinn
 
 ## The service package
 
-On the player the gateway is the boot layer's `service` package
-(snowsky-disc-boot `docs/contract.md`). `scripts/build_package.py` lays it
-out and packs it with snowsky-disc-boot's `scripts/package.py` (found through
-`DISC_BOOT_DIR`, by default the sibling checkout):
+On the player the gateway is the boot layer's package
+(snowsky-disc-boot `docs/dev/boot/contract.md`). Boot API 2 (snowsky-disc-boot
+2.57.7, 2026-10-09) makes the server the `controller` and runs background
+`service` packages beside it. The package still names API 1's `service` role
+with `bootApi` 1: boot API 2 installs and runs it as its controller
+(`DISC_BOOT_ROLE=service`) and writes its status to both `controller.json`
+and `service.json`, and a boot layer of API 1 runs it as before, so one
+package serves players of either API. The gateway reads `controller.json`,
+else `service.json`. A package that names `controller` with `bootApi` 2 is
+refused by API 1; building one needs a `scripts/boot-revision` whose
+`package.py` knows that role (the pinned `c1a4903` knows `service`, `ui` and
+`menu`, and writes `homepage`). The package's `package.json` names the
+project's page (`build_package.HOMEPAGE`), which the boot layer's status
+passes to the manager.
+
+A package reaches a player in one of two ways: the manager's update takes a
+signed `.update` (below), or snowsky-disc-boot's `install.py --packages` puts
+the package on the card while the player is in USB storage mode (Working
+mode → USB Storage) and the boot menu's Packages screen installs it at the
+next start (Play at power-on only while the menu is not installed yet).
+
+`scripts/build_package.py` lays it out and packs it with snowsky-disc-boot's
+`scripts/package.py` (found through `DISC_BOOT_DIR`, by default the sibling
+checkout; a release takes it at `scripts/boot-revision`):
 
 ```sh
 bash scripts/build.sh mips
@@ -198,7 +235,7 @@ are inputs, mounted read-only; nothing here changes them.
 ```sh
 # Once per emulator revision: its image under a tag of its own.
 docker build -t snowsky-disc-qemu-ci:<revision> <emulator>/emulator/docker
-# The boot layer's review image, in snowsky-disc-boot (docs/development.md there).
+# The boot layer's review image, in snowsky-disc-boot (docs/dev/development.md there).
 bash scripts/build.sh mips
 python3 scripts/emulator.py up --reference <emulator> --image <boot image> --ota <firmware>/main_os/ota_v<version>
 ```
@@ -230,11 +267,19 @@ python3 scripts/test-mips.py               # the conformance contract against bu
 ```
 
 Each scenario keeps its evidence in ignored `work/`. Tests alternate control
-ownership; they do not replay mutations after uncertain outcomes. Boot
-restarts a confirmed version at most three times in ten minutes, so
-`restart-service` is for a scenario's single restart, not a loop. A guest stock
-powered off (a long Power press) is powered on again by the runner.
-`down` removes only the recorded stack and its volume.
+ownership; they do not replay mutations after uncertain outcomes. Boot restarts
+a confirmed version at most three times in ten minutes, so `restart-service` is
+for a scenario's single restart, not a loop. A guest stock powered off (a long
+Power press) is powered on again by the runner. `down` removes only the recorded
+stack and its volume. Under the boot layer, `--lifecycle` ends `mq_player`;
+stock's own watch loop (`fiio_init.sh`) starts `mq_ui` and `mq_player` again
+within seconds (7 s on the guest), and the gateway keeps its process.
+`manager_guest.py` signs its update with a key made for the run, never the
+release key, and fills the card to get 507. A new version is confirmed 180 s
+after it is ready; a return to the previous version is confirmed at once. The
+guest's status names the server `controller` under boot API 2;
+`scripts/emulator.py` gives it as `service` too, so the scenarios read it on
+either boot layer.
 
 The combined images' own guest stack (a direct boot with the companion started
 by a guest-side supervisor, the card switch, the image's copy of the page, a

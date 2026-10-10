@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The gateway as the boot layer's `service` package (snowsky-disc-boot docs/contract.md).
+"""The gateway as the boot layer's `service` package (snowsky-disc-boot docs/dev/boot/contract.md).
 
 Lays out a package folder (bin/disc-service, bin/run, catalog/), describes and
 zips it with snowsky-disc-boot's scripts/package.py (found through
@@ -98,7 +98,7 @@ def service_args(profile, engineering, port=None, manager_port=None, update_keys
 
 def start_script(args):
     lines = ['#!/bin/sh',
-             '# disc-server under the boot layer (snowsky-disc-boot docs/contract.md): the gateway with the',
+             '# disc-server under the boot layer (snowsky-disc-boot docs/dev/boot/contract.md): the gateway with the',
              "# arguments the reviewed profiles give it; this slot's catalogs; the boot layer supervises it.",
              f'exec "{SLOT}/bin/disc-service" \\']
     pairs, i = [], 0
@@ -176,7 +176,7 @@ def build(binary=None, output=None, version=None, engineering=False, profile_ver
     shutil.copyfile(APPS_CATALOG, folder/'catalog/apps.json')
     (folder/'catalog/apps.json').chmod(0o644)
     # The service role of boot API 1, which boot API 2 runs as its controller (snowsky-disc-boot
-    # docs/dev/contract.md, "From boot API 1"): one package for players of either boot layer until
+    # docs/dev/boot/contract.md, "From boot API 1"): one package for players of either boot layer until
     # boot API 2 is the released one; then it names the controller's role with bootApi 2.
     manifest = package.describe(folder, NAME, version, 'service', 'bin/run', ready=30, profiles=[profile['version']], arch=arch,
                                 homepage=HOMEPAGE, boot_api=1)

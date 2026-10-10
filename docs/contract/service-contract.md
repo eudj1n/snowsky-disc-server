@@ -12,12 +12,13 @@ All application routes require the exact Host and, when present, exactly
 `Origin: http://<authority>`. CLI requests may omit Origin. Duplicate Host/Origin
 headers fail. These checks are not authentication. Emulator publication is
 loopback-only; LAN distribution requires a separate pairing/authentication design.
-No CORS, TLS, arbitrary file serving, shell execution or redirects are provided.
+No CORS, TLS, arbitrary file serving, shell execution or redirects are provided,
+beyond `/` redirecting to the manager when no app is chosen or alone (below).
 
 ## Supervision
 
 On the player the service is the boot layer's `service` package
-(snowsky-disc-boot `docs/contract.md`): boot starts it, waits for its ready
+(snowsky-disc-boot `docs/dev/boot/contract.md`): boot starts it, waits for its ready
 file, confirms it after 180 s of running, restarts a confirmed version at
 most three times in ten minutes and rolls a new one back to the previous one
 at its first failure. The combined images' own supervisor (`--supervise`,
@@ -56,16 +57,39 @@ software", apart from the apps (owner, 2026-10-06: the server's apps are not
 the player's), lists the boot layer's packages without changing them: this
 server (confirmed or not), the menu, the interfaces installed beside stock's
 own (diskOS and the like) and the one this boot runs, each with its project
-page where the package or the boot layer's status names one. "System" shows
-the build, the boot layer's decision in words ("with packages · installing from the card" for
-platform and recovery) with its project page, the ports and
-whether the card is in the player. A project page is linked only as a plain
+page where the package or the boot layer's status names one. Under boot API 2
+it also lists the services the boot layer runs beside the server
+(disc-health, disc-network and the like), each running (confirmed or not), off
+(`autostart` false), stopped after a failure, or not running. FiiO's own
+interface appears as the boot menu lists it: "FiiO" with the firmware
+profile's version, "FiiO 2.57" (owner, 2026-10-10). The section only reads;
+its help says that packages are installed and removed in the boot menu at
+power-on, on its Packages screen (the owner's decision of 2026-10-09). The
+server's own update is the next section. "System" shows the build and the
+boot layer's decision in words, with its project page (owner, 2026-10-06:
+"platform · recovery" read as something broken): the mode `platform` "with
+packages" or `stock` "the player's own only", the reason `default` "by
+default", `key` "a key held at power-on", `boot-loop` "after failed starts"
+or `recovery` "installing from the card" (a value the page does not know
+shows as it is); then the ports and whether the card is in the player. It
+adds two services' reports when they are installed: disc-health's latest
+reading (the battery's percent and temperature, the free space of the player
+and the card, and the card errors, crashes and restarts of stock's interface
+since power-on; snowsky-disc-boot `docs/dev/packages/health.md`) and
+disc-network's remembered Wi-Fi networks by name, the connected one marked
+and never a key (`docs/dev/packages/network.md`); neither shows without its
+report. A project page is linked only as a plain
 https address. Each change takes the serial number from the page's field (kept in
 the browser only when "Remember" is ticked); one change runs at a time and
 the others wait, disabled. The answer of a change appears in its own
 section; a connection lost during a change is reported as such and the list
-is read again rather than taken for success or failure. Once a switch is
-confirmed the page reloads, so the new version's page takes over. English or Russian
+is read again rather than taken for success or failure. The page that ran a
+switch reloads once the new version is confirmed, and the new version's page
+says the outcome once (kept for that reload in `sessionStorage`); the
+manager's files are `no-store`, so the reload takes the new version's page
+(owner, 2026-10-06: after the switch from 2.57.1 the page kept 2.57.1's
+script until it was reloaded by hand). The page that runs the switch
+decides, so pages of 2.57.2 and earlier do not reload themselves. English or Russian
 by the player page's rule (owner, 2026-10-06): the choice made with the
 header's EN/RU switch (kept in this browser), else the player's own language
 when the page has its words, else English; never the browser's language.
@@ -86,7 +110,10 @@ otherwise):
   inline script, style, handler or `javascript:` URL and no root-absolute
   reference. Hidden names and `__MACOSX` are skipped; links, other special
   files, encrypted entries, methods other than stored and deflate, split and
-  zip64 archives are refused. Entries are inflated one by one into
+  zip64 archives are refused. A zip that keeps its sizes in data descriptors
+  (as Finder's does) or carries zip64 extra fields in its local headers is
+  accepted; only a zip64 or split archive, marked in its end record, is
+  refused. Entries are inflated one by one into
   `Apps/.<App>.installing` with their size and CRC-32 checked, the files are
   checked again, then that folder takes the app's place (the previous one
   goes only after the swap); the card must keep 8 MiB free beyond the app
@@ -150,7 +177,11 @@ gateway outside the boot layer.
   confirmation: the page waits for the boot layer's new answer, then for
   the new version's confirmation, and says when boot kept or restored
   another one (`lastRequest`). Restarting the server does not stop stock's
-  playback.
+  playback. A new version is confirmed 180 s after it is ready, about three
+  minutes after the switch; a return to the previous version is confirmed at
+  once, because boot confirmed it before (snowsky-disc-boot
+  `docs/dev/boot/contract.md`), so the page reloads within seconds after a
+  return.
 
 ## Diagnostics
 
@@ -169,7 +200,7 @@ name>,"ui":<its ui.json: the installed interfaces and this boot's choice>,
 "menu":<its menu.json>,"services":{"<name>":{"status":<the boot layer's
 service/<name>.json: state, version, autostart>,"report":<the service's own
 service/<name>/status.json, at most 4 KiB>}} (boot API 2's services by name, at most
-16; {} without them)} (snowsky-disc-boot `docs/dev/contract.md`, "Status"; `--boot-status
+16; {} without them)} (snowsky-disc-boot `docs/dev/boot/contract.md`, "Status"; `--boot-status
 DIR`, each part null when absent, over 8 KiB or not strict JSON; the whole null outside
 the boot layer),
 "page":{"source":"card"|null,"app","version","homepage" (the served app's, from its app.json:
@@ -191,23 +222,32 @@ counts the package as ready. `/api/health` carries `"historyWrites":"ok"` or
 `"failing"` once the last play the service tried to write failed (a full
 guest card once stopped the history without a word, 2026-09-29); the first
 failure, and each change of reason, is also a service message.
+`service.name` stays `disc-native-probe` in `/api/health`, `/api/about` and
+`--version`, and `service.version` stays `0.9.0` (the last combined image),
+for the clients that check them; the package's own name and version
+(`disc-server 2.57.7`) come from the boot layer's status (`boot.controller`),
+and the manager's header shows those (2026-10-06).
 
 ## Apps and catalogs
 
 Combined-009 ([Apps on the card](../apps/sd-webroot.md)): `--apps <card>/Apps`
-serves each app folder, Disc Player at `/` and any app at `/apps/<App>/`;
-apps live only on the card (owner, 2026-10-02): without the default app `/`
-answers 404 "No app is installed". `--catalog` holds the reviewed catalogs
+serves each app at `/apps/<App>/` and the default app at `/`: the one chosen
+in the manager while it is installed, else the only app; with neither, `/`
+redirects to the manager (above). Apps live only on the card (owner,
+2026-10-02). `--catalog` holds the reviewed catalogs
 (the package's `catalog/`); `--card-catalog <card>/.disc/catalog` lets the card
 override `queries.json` and `store.json`, and `--card-commands` (the
 engineering image only) its `commands.json`; a card file that fails its
 checks leaves the package's in force. `GET /api/contract/<name>.json` serves
 the effective `compatibility.json` (the image's), `commands.json`,
 `queries.json` and `store.json` with `X-Catalog-Source`; `GET /api/apps`
-lists the card's apps (`{"default","apps":[{"name","version","default"}],
-"image"}`). An app's policy adds the origins of its own `origins.json`,
-which names no firmware profile (it may). The diagnostics' `page` is
-`{"source":"card"|"image"|"embedded","app","version"}` for the default app.
+lists the card's apps (`{"default","chosen","apps":[{"name","version",
+"homepage","default"}],"image":false}`; `homepage` is the app's `app.json`
+page, a plain https address of at most 200 bytes, else null; `chosen` is the
+manager's choice or null). An app's policy adds the origins of its own
+`origins.json`, which names no firmware profile (it may). The diagnostics'
+`page` is `{"source":"card"|null,"app","version","homepage"}` for the
+default app.
 
 The apps this server offers come by reference (owner, 2026-10-03): the
 package carries `catalog/apps.json` (from `apps/catalog.json`), a catalog
@@ -381,6 +421,13 @@ replaced (400), and any other header value is refused (400).
 
 Read-only metadata of music files on the card, served by the gateway itself
 (no stock contact), for covers, durations and lyrics of the whole collection.
+While the gateway streams a track or reads a file on the card, the card is
+busy and an unmount fails. Stock's player unmounts the card for USB storage
+mode without checking the result, then removes the mount point with
+`rm -rf`, which would empty the mounted card; the boot layer's card guard
+refuses that removal (snowsky-disc-boot `docs/dev/boot/contract.md`, "The
+card guard"). This is why the gateway may hold a card file open under the
+boot layer.
 `/api/health` reports `"media": true` when a card root is configured.
 
 - `GET /api/media/info/<card path>`: `{"path","format","bytes","durationMs",
@@ -529,7 +576,7 @@ database; the observer needs `--player-process` too.
 `--database <card>/.disc/disc.db` (combined-008): one SQLite file on the
 music card for what the service keeps, starting with the play history
 (the store of collections follows). SQLite is the vendored 3.53.4, linked
-statically (stock's shared 3.30.1 is a hard-float build, see plan).
+statically (stock's shared 3.30.1 is a hard-float build; snowsky-disc-web's plan).
 
 - Opened for one operation and closed right after, one connection at a time
   in the process: the service never holds the card open, so stock can
