@@ -8,6 +8,8 @@ Entries stay short; how and why it was done is in the [plan](docs/plan.md).
 
 ## [Unreleased]
 
+- "Player software" names FiiO's own interface "FiiO" with the firmware's
+  version, as the boot menu lists it.
 - "Player software" says where its packages are installed and removed: in the
   boot menu on the player, at power-on.
 

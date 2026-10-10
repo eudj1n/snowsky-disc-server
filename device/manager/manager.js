@@ -20,7 +20,7 @@ const TEXT = {
     saved: 'Saved.', failed: 'Not done: {why}', unreachable: 'The server does not answer.',
     server: 'Server', build: 'build {build}', language: 'Language', project: 'Project page',
     software: 'Player software', softwareHelp: 'Installed in the player itself by the boot layer, and installed or removed in its boot menu at power-on (the Packages screen). The server updates below.',
-    stockUi: "Player's own interface", thisBoot: 'running', boot: 'Boot layer',
+    thisBoot: 'running', boot: 'Boot layer',
     modes: { platform: 'with packages', stock: "the player's own only" },
     reasons: { default: 'by default', key: 'a key held at power-on', 'boot-loop': 'after failed starts', recovery: 'installing from the card' }, ports: 'Ports', card: 'Card', cardIn: 'in the player', cardOut: 'not available',
     portsValue: 'apps {apps}, manager {manager}', notBoot: 'not under the boot layer', confirmed: 'confirmed', tentative: 'not confirmed yet',
@@ -62,7 +62,7 @@ const TEXT = {
     saved: 'Сохранено.', failed: 'Не выполнено: {why}', unreachable: 'Сервер не отвечает.',
     server: 'Сервер', build: 'сборка {build}', language: 'Язык', project: 'Страница проекта',
     software: 'Программы плеера', softwareHelp: 'Установлены в память плеера слоем загрузки; ставятся и удаляются в его меню при включении (экран Packages). Сервер обновляется ниже.',
-    stockUi: 'Штатный интерфейс', thisBoot: 'работает', boot: 'Слой загрузки',
+    thisBoot: 'работает', boot: 'Слой загрузки',
     modes: { platform: 'с пакетами', stock: 'только штатное' },
     reasons: { default: 'по умолчанию', key: 'кнопкой при включении', 'boot-loop': 'после неудачных запусков', recovery: 'установка с карты' }, ports: 'Порты', card: 'Карта', cardIn: 'в плеере', cardOut: 'недоступна',
     portsValue: 'приложения {apps}, менеджер {manager}', notBoot: 'не под слоем загрузки', confirmed: 'подтверждён', tentative: 'ещё не подтверждён',
@@ -290,9 +290,11 @@ function renderSoftware() {
   // Stock's own interface is always there; without an interface of ours (no ui.json) it is the one that runs.
   if (boot) {
     const running = boot.ui ? boot.ui.choice?.ui : 'stock'
-    for (const entry of [...(boot.ui?.installed ?? []), { name: 'stock', confirmed: true }])
+    // FiiO's own interface by its name and the firmware's version, as the boot menu lists it (owner, 2026-10-10).
+    const stock = { name: 'stock', confirmed: true, version: boot.decision?.profile }
+    for (const entry of [...(boot.ui?.installed ?? []), stock])
       rows.push({
-        name: entry.name === 'stock' ? t('stockUi') : entry.name, version: entry.version, homepage: entry.homepage,
+        name: entry.name === 'stock' ? 'FiiO' : entry.name, version: entry.version, homepage: entry.homepage,
         marks: [entry.name === running && t('thisBoot'), !entry.confirmed && t('tentative')].filter(Boolean),
       })
     for (const [name, { status }] of Object.entries(boot.services ?? {}))
