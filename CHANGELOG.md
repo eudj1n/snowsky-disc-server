@@ -6,17 +6,15 @@ for FiiO's 2.57. Each published release is a `v<version>` tag with its package
 on the [releases page](https://github.com/eudj1n/snowsky-disc-server/releases).
 Entries stay short; how and why it was done is in the [plan](docs/plan.md).
 
-## [Unreleased]
+## [2.57.6] — 2026-10-10
 
-- "Player software" names FiiO's own interface "FiiO" with the firmware's
-  version, as the boot menu lists it.
+- "Player software" lists the services the boot layer runs beside the server
+  (from boot release 2.57.7), with whether each runs, and names FiiO's own
+  interface "FiiO" with the firmware's version, as the boot menu lists it.
 - "Player software" says where its packages are installed and removed: in the
-  boot menu on the player, at power-on.
-
-- "Player software" in the manager also lists the services the boot layer
-  runs beside the server (from its next release on), with whether each runs.
-- The server finds its own status where the coming boot layer keeps it, and
-  where the boot layer installed on your player keeps it now.
+  boot menu on the player.
+- The server finds its own status where boot release 2.57.7 keeps it (the
+  server is its controller), and where earlier boot layers keep it.
 - With disc-health installed, the manager's "System" shows the battery, the
   free space in the player and on the card, and the card errors, crashes and
   restarts of the interface since power-on.
