@@ -2,7 +2,7 @@
 
 > Evidence of the combined images' guest stack (a direct boot, the companion started by a guest-side
 > supervisor), kept as history. The gateway is now checked as the boot layer's package on a stock-init
-> guest: [development](development.md#disposable-guest).
+> guest: [development](../development.md#disposable-guest).
 
 ## Scope and reproduction
 
@@ -14,7 +14,7 @@ does not establish day-long stability or production capacity.
 ```sh
 bash scripts/test.sh
 # Existing stack, browser disconnected; explicit boot if it powered off:
-python3 scripts/emulator.py boot
+python3 scripts/emulator.py power on
 python3 scripts/integration.py --soak
 ```
 
@@ -45,7 +45,7 @@ exact native process identity and a free native control reservation.
   of both transitions. Five one-second playing intervals fit the 30-second
   generated track and exercise local/native coexistence without changing the
   stock idle policy. This is **not** another natural-idle test; that separate
-  acceptance remains documented in [idle supervision](idle-supervision.md).
+  acceptance remains documented in [idle supervision](../stock/idle-supervision.md).
 
 The test never recovers a failed handshake or operation by replaying it.
 Any failure ends this observation; a recovery boot is not counted as a stable
@@ -58,7 +58,7 @@ continuation. The native identity includes `/proc` start ticks as well as PID.
 | QEMU-host resident memory | At most 32 MiB |
 | RSS growth from warmed baseline | At most 4 MiB at every sample |
 | Open native process descriptors | At most 12 at each sample; exact baseline after each cycle |
-| Native/QEMU process threads | At most 12 at each sample since combined-009 (8 in combined-008, 9 before); exact baseline after each cycle |
+| Native/QEMU process threads | At most 24 at each sample under the boot layer (12 in combined-009, 8 in combined-008, 9 before); exact baseline after each cycle |
 | Enforced process FD limit during test | Soft `RLIMIT_NOFILE=64`; previous soft/hard values restored afterward |
 | Observation duration | At least 600 seconds after warmup |
 | Complete connections | At least 20 measurement cycles, plus two warmup cycles |
@@ -78,14 +78,28 @@ PID and start ticks before restoring; it never applies limits to a replacement.
 If the process disappears, the partial report records failed cleanup and the
 outer test runner performs explicit guest recovery.
 
-Application limits remain those in the [service contract](service-contract.md):
-four HTTP workers, one WS owner, one shared catalog reservation, 8 KiB request
+Application limits remain those in the [service contract](../contract/service-contract.md):
+sixteen HTTP workers on the apps' port and two on the manager's, one WS owner, one shared catalog reservation, 8 KiB request
 headers/stream buffer, bounded frames, finite transfer deadlines and no replay.
 The synthetic host/MIPS suite covers stalled HTTP and downstream backpressure;
 this soak uses the actual stock catalog, not a synthetic 4 MiB library.
 Rerun this gate after changing the native runtime or substantially enlarging the
 embedded browser bundle; acceptance of the diagnostic binary does not set the
 memory footprint of a future full UI build.
+
+## Under the boot layer (2026-10-03)
+
+The apps' port runs sixteen workers and the manager's port two (service
+contract, "WebSocket"). Idle on the guest, the gateway has 22 threads: main,
+the apps' master and 16 workers, the manager's master and 2 workers, and
+qemu-user's own RCU thread, which the player does not have. The ceiling is 24
+(`MAX_THREADS` in `tests/integration/soak_metrics.py`): a session's reader
+and one transient thread on top. A package starts with only its standard
+descriptors (before snowsky-disc-boot `368b0bf` it inherited four of the boot
+program's, the boot log among them), so the gateway has 5 descriptors idle:
+stdin, the log as stdout and stderr, and the two listeners. A session's two
+sockets and a catalog read's two make nine, under the ceiling of 12
+(`MAX_FDS`).
 
 ## Evidence and regression tests
 
@@ -99,7 +113,7 @@ Firmware-independent tests in `test_soak_metrics.py` reject changed process
 identity, transient budget excess, idle FD/thread leaks, insufficient duration,
 missing cycles/workload/final cleanup sample and regressing sample clocks. They
 also verify a complete stable synthetic report. Execution measurements belong in
-[validation](validation.md); the plan is checked only after the full run passes.
+[validation](validation.md); a run is recorded only after it passes in full.
 
 The recorded run passed in 600.52 seconds: 20 measurement connections, 295 state
 reads, 295 streaming pages and 315 resource samples. Warm RSS was 12,220 KiB;

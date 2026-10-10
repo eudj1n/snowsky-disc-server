@@ -66,7 +66,7 @@ typedef struct {
      * <card>/.disc/playlists, and external ones, which the player's own file browser
      * shows, in <card>/Playlists (owner, 2026-09-29). */
     const char *lists_dir, *external_lists_dir;
-    /* Under the boot layer (snowsky-disc-boot docs/contract.md): the file whose
+    /* Under the boot layer (snowsky-disc-boot docs/dev/boot/contract.md): the file whose
      * creation tells boot the service listens, and the folder of boot's status
      * files (boot.json, service.json) the diagnostics show. */
     const char *ready_file, *boot_status;
@@ -1097,7 +1097,7 @@ out:
     drop_catalog(s, cache);
     return code;
 }
-/* Media reads (plan: next image): metadata, covers and lyrics of music files
+/* Media reads (combined-008): metadata, covers and lyrics of music files
  * on the card, read-only and bounded. Not forwarded to stock; the card path is
  * confined by disc_media_open (audio extensions only, no links, no dot parts). */
 #define DISC_MEDIA_BUDGET_MS 10000
@@ -1910,7 +1910,7 @@ static void about_json_limited(const char *path, disc_buffer *b, off_t limit) {
 static void about_json_file(const char *path, disc_buffer *b) { about_json_limited(path, b, 8192); }
 /* This server's status from the boot layer: controller.json under boot API 2; service.json under
  * boot API 1, and under API 2 while this package names API 1's service role (snowsky-disc-boot
- * docs/dev/contract.md, "From boot API 1"). The first that is there, or NULL. */
+ * docs/dev/boot/contract.md, "From boot API 1"). The first that is there, or NULL. */
 static const char *boot_role_file(server *s, char *path, size_t capacity) {
     static const char *const names[] = {"controller.json", "service.json"};
     struct stat st;
@@ -2492,7 +2492,7 @@ static int app_remove_route(struct mg_connection *c, server *s, const char *name
     pthread_mutex_lock(&s->lock); s->manager_busy = 0; pthread_mutex_unlock(&s->lock);
     return code ? code : apps_route(c, s);
 }
-/* The boot layer's status of this server's role (boot_role_file, snowsky-disc-boot docs/dev/contract.md). */
+/* The boot layer's status of this server's role (boot_role_file, snowsky-disc-boot docs/dev/boot/contract.md). */
 typedef struct {
     int present, confirmed, previous;
     char name[33], version[65], slot[2], state[16], last_request[200];

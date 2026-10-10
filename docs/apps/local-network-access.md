@@ -26,7 +26,7 @@ need. No image with the option was prepared or installed.
   already publishes `ingenic.local`. Safari and iOS have no equivalent yet;
   Firefox has the permission from 153, its mixed-content relaxation is
   unverified.
-- **Outbound relay** (the plan's Stage C) for other browsers and for access
+- **Outbound relay** (snowsky-disc-web plan, Stage C) for other browsers and for access
   from outside the home; **per-device certificates** (the plex.direct
   pattern) for every browser on the LAN, at the cost of TLS on the player
   and a certificate service.
@@ -41,7 +41,7 @@ Sources: [Chrome: Local Network Access](https://developer.chrome.com/blog/local-
 ## Lab check (2026-09-30)
 
 The service was built for the host and MIPS with `--cors-origin`
-([contract](gateway-contract.md#hosted-pages-over-local-network-access)).
+([contract](../contract/gateway-contract.md#hosted-pages-over-local-network-access)).
 The synthetic suite passed on both (407 host tests; 38 network tests on the
 MIPS executable inside the guest, including the new cross-origin class and
 the check that a preflight without a listed origin is refused).

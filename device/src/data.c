@@ -252,7 +252,7 @@ static const char *const FAVORITE_ADD =
     "INSERT INTO MY_LOVE (" FAVORITE_COLUMNS " ) SELECT " FAVORITE_COLUMNS " FROM SONG WHERE ID = ?";
 
 /* The favorite of this file and track in the library's context: stock tells favorites
- * apart by path, track number and IS_M3U (combined-009, docs/m3u.md), so one set while a
+ * apart by path, track number and IS_M3U (combined-009, docs/stock/m3u.md), so one set while a
  * list plays is not the library's. A track number stock left empty is NULL on both sides. */
 static long long love_row(sqlite3 *db, const unsigned char *path, long long track, int track_null, long long m3u, int *status) {
     sqlite3_stmt *q = NULL;

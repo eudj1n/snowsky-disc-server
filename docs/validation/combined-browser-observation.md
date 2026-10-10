@@ -52,7 +52,7 @@ stream is the first floating-point work of the connection:
 17f64  li     v0,1             ; delay slot, not a nop
 ```
 
-The player kernel is Linux 4.4.94 (boot report (snowsky-disc-boot `docs/boot-report-observation.md`)).
+The player kernel is Linux 4.4.94 (boot report (snowsky-disc-boot `docs/dev/observations/boot-report-observation.md`)).
 Before Linux 4.8, the MIPS FPU emulator executes the delay slot of a taken
 floating-point branch by writing that instruction plus a `break` into a frame on
 the **user stack** and pointing `epc` at it (`mips_dsemul`). If that stack page

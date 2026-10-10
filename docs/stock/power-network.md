@@ -2,7 +2,7 @@
 
 > Evidence of the combined images' guest stack (a direct boot, the companion started by a guest-side
 > supervisor), kept as history. The gateway is now checked as the boot layer's package on a stock-init
-> guest: [development](development.md#disposable-guest).
+> guest: [development](../development.md#disposable-guest).
 
 ## Browser timeout fix and IDs
 
@@ -21,7 +21,7 @@ tracking; session IDs or generations define connection ownership. They do not
 solve wire correlation: stock FiiO does not echo a general request ID. Reads
 remain serialized and a timed-out connection is retired, with no command replay,
 except for the current-track query `0202`, whose silence keeps the connection
-as in the reference controller ([service contract](service-contract.md)).
+as in the reference controller ([service contract](../contract/service-contract.md)).
 An absent track response still means unknown, not proof that playback stopped.
 
 ## Disposable transition tests

@@ -4,7 +4,8 @@ What changes for you in the DISC server, release by release. A release is
 named after FiiO's firmware and our number for it: 2.57.5 is the fifth server
 for FiiO's 2.57. Each published release is a `v<version>` tag with its package
 on the [releases page](https://github.com/eudj1n/snowsky-disc-server/releases).
-Entries stay short; how and why it was done is in the [plan](docs/plan.md).
+Entries stay short; why is in the developer documents (`docs/`), how in the
+commits.
 
 ## [2.57.7] — 2026-10-10
 

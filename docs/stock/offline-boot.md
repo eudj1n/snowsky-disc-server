@@ -2,7 +2,29 @@
 
 > Evidence of the combined images' guest stack (a direct boot, the companion started by a guest-side
 > supervisor), kept as history. The gateway is now checked as the boot layer's package on a stock-init
-> guest: [development](development.md#disposable-guest).
+> guest: [development](../development.md#disposable-guest).
+
+## Under the boot layer (2026-10-03)
+
+`integration.py --offline` powers the guest on with the emulator's
+`NETWORK=isolated` (`emulator.py power on --network isolated`, through
+snowsky-disc-boot's `guest.py`) and checks inside the guest's own namespace:
+
+- There is no eth/wlan and no stock listener.
+- The apps' port redirects to the manager (no app on the card); the manager
+  answers and names the package in `/api/update`.
+- Stock plays the prepared track locally; meanwhile the gateway refuses
+  stock's routes: the WebSocket with 503 in about 3 s, the catalog with 502
+  at once.
+- The boot layer confirms the gateway 180 s after it is ready, with no
+  network.
+- A wlan0 address then arrives (a documentation address); stock binds 12100
+  and 12103, and an explicit new connection reads the identity, the
+  firmware, the paused track and the catalog through the same gateway
+  process.
+
+Not covered: a Wi-Fi radio, an address change during a connection, mDNS. The
+sections below are the combined images' evidence.
 
 ## Reproduction and isolation
 

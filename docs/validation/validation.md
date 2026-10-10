@@ -2,7 +2,7 @@
 
 > Evidence of the combined images' guest stack (a direct boot, the companion started by a guest-side
 > supervisor), kept as history. The gateway is now checked as the boot layer's package on a stock-init
-> guest: [development](development.md#disposable-guest).
+> guest: [development](../development.md#disposable-guest).
 
 ## Result and scope
 
@@ -105,12 +105,12 @@ sample-perfect audio or absence of all glitches.
    errno 131) and WS 1011. Direct TCP reproduces the same reset without our service.
    Tracing shows stock retains the old listener, then closes and recreates it on
    disconnect, resetting a queued replacement connection. [Handover evidence and
-   regression](handover.md) record successful explicit recovery without replay.
+   regression](../stock/handover.md) record successful explicit recovery without replay.
    Seamless takeover is not claimed; one-owner playback coexistence remains valid.
 4. Catalog's original 3-second wait covered headers only. A new regression
    reproduced stalled/dripping-body hangs. A local monotonic client deadline now
    bounds the entire fetch; one catalog reservation keeps health/WS responsive.
-   [Native hardening evidence](native-lifecycle.md) documents the patch and tests.
+   [Native hardening evidence](../stock/native-lifecycle.md) documents the patch and tests.
 5. A timed-out diagnostic read previously left its connection reusable, so a
    late same-tag response could satisfy another read. The session now retires
    immediately, ignores late events and clears browser observations. Local IDs
@@ -118,24 +118,24 @@ sample-perfect audio or absence of all glitches.
    the physical player answered `0202` only with `a60a/0010` while stopped, the
    `a202` case was aligned with the reference controller: the observation
    becomes unknown and the connection stays open. [Power/network
-   evidence](power-network.md) also records a confirmed stock idle power request
+   evidence](../stock/power-network.md) also records a confirmed stock idle power request
    and the original viewer-free supervision gap, addressed by the subsequent
-   [idle-supervision stage](idle-supervision.md).
+   [idle-supervision stage](../stock/idle-supervision.md).
 6. The development launcher required an Ethernet IP before starting the native
    process. The offline-boot regression reproduced this. Stock V2.57 listeners
    bind wildcard once networking becomes ready, so the launcher now consistently
-   uses loopback. [Offline evidence](offline-boot.md) confirms recovery without
+   uses loopback. [Offline evidence](../stock/offline-boot.md) confirms recovery without
    restarting the companion; no native executable changes were required.
 7. The viewer-free adapter left stock poweroff markers unconsumed. A bounded
    container-side observer now delegates to the reference shutdown consumer.
    Explicit boot first quiesces that observer; starting only the companion after
-   poweroff is rejected. [Idle supervision](idle-supervision.md) records natural
+   poweroff is rejected. [Idle supervision](../stock/idle-supervision.md) records natural
    shutdown and recovery, without firmware timer/input changes.
 8. Real V2.57 catalog responses right-pad Content-Length with spaces. Streaming
    initially rejected this legal HTTP whitespace; a failing synthetic regression
    reproduced it. The numeric validator now permits surrounding HTTP whitespace
    while rejecting internal spaces, nondecimal suffixes and overflow.
-   [Streaming contract and evidence](streaming-http.md).
+   [Streaming contract and evidence](../apps/streaming-http.md).
 
 ## Exact inputs
 
@@ -194,7 +194,7 @@ pagination, playback coexistence, owner handover/recovery and companion-only
 restart. The first firmware failure and padded-header regression led to the
 documented validator fix. Final real-browser identity/state/streamed catalog and
 explicit disconnect passed, with no warning/error console entries. The native
-service still rejects all uploads. [Details and scope](streaming-http.md).
+service still rejects all uploads. [Details and scope](../apps/streaming-http.md).
 
 Resource stage: `work/soak-conformance.log` records passing host C assertions,
 8 JS tests and 46 Python tests (32 native network, 9 observer, 5 soak metrics).
@@ -231,7 +231,7 @@ and hook-managed stop/restart are explicitly unqualified, not passing checks.
 Private artifacts/reports are retained in `work/deployment-v257/`. The boot hook
 exists only in the candidate and disposable extracted fixture; no physical
 player, USB/debug configuration or external repository was changed. Detailed
-deployment design, fingerprints and remaining gates (snowsky-disc-boot `docs/native-deployment.md`).
+deployment design, fingerprints and remaining gates (snowsky-disc-boot `docs/dev/firmware/native-deployment.md`).
 
 ## Profile selection and offline writer review — 2026-09-24
 
@@ -266,15 +266,15 @@ their earlier acceptance remains evidence for unchanged native behavior.
 
 The existing stack was explicitly pinned after reading its stock version
 metadata. The external repositories remain clean. No device/USB helper was
-executed and no physical writes occurred. [Firmware promotion and RE workflow](firmware-compatibility.md)
-and writer findings, debug-mode design and remaining work (snowsky-disc-boot `docs/deployment-writer-review.md`)
+executed and no physical writes occurred. [Firmware promotion and RE workflow](../firmware/firmware-compatibility.md)
+and writer findings, debug-mode design and remaining work (snowsky-disc-boot `docs/dev/installer/deployment-writer-review.md`)
 define the next gate. Stage 1 remains deferred.
 
 ## Opt-in USB engineering image — 2026-09-24
 
 The separate engineering variant adds a native local console supervisor and hook,
 with a firmware-pinned USB profile. The ordinary image, browser assets and native
-companion binary are unchanged. Design, RE evidence and artifact fingerprints (snowsky-disc-boot `docs/usb-diagnostics.md`)
+companion binary are unchanged. Design, RE evidence and artifact fingerprints (snowsky-disc-boot `docs/dev/usb-boot/usb-diagnostics.md`)
 describe the activation contract and remaining hardware limits.
 
 `work/usb-conformance-final-authorized.log` records C framing assertions, 8 JS
@@ -324,7 +324,7 @@ acceptance remain open before Stage 1.
 ## ROM CPU observation preparation — 2026-09-24
 
 The host-only `rom_probe.py` implements offline planning and a separately invoked
-single CPU-info observation. The acquisition review (snowsky-disc-boot `docs/native-acquisition.md`)
+single CPU-info observation. The acquisition review (snowsky-disc-boot `docs/dev/nand/native-acquisition.md`)
 records why diskOS's cloner dump command is not an established pre-install backup
 route: it needs a resident cloner and does not validate ACK/CRC completion.
 The required RAM reader/full NAND backup remains unimplemented.
@@ -360,7 +360,7 @@ This is a responding physical endpoint with an unresolved response-length policy
 not a passed eight-byte acceptance check or NAND/firmware qualification.
 
 The original request/dependency/result files remain private and unchanged in
-`work/rom-cpu-observation-001/`; acquisition evidence (snowsky-disc-boot `docs/native-acquisition.md`)
+`work/rom-cpu-observation-001/`; acquisition evidence (snowsky-disc-boot `docs/dev/nand/native-acquisition.md`)
 records their session and result fingerprint. No second physical request,
 interface claim/reset, RAM upload or NAND access occurred. Return to stock boot
 has not been observed. The new five-byte regression uses only the fake ABI;
@@ -389,7 +389,7 @@ the saved CPU signature does not qualify RAM execution, NAND or installation.
 `device/acquisition/` now implements bounded identity/page/OOB transactions using
 an injected receive-only adapter. Only synthetic chip policies exist. The host
 record codec checks completion, nonce/sequence/physical page, length and CRC before
-exposing any payload. Design and remaining hardware layers (snowsky-disc-boot `docs/nand-reader-core.md`).
+exposing any payload. Design and remaining hardware layers (snowsky-disc-boot `docs/dev/nand/nand-reader-core.md`).
 
 `work/nand-reader-conformance.log` records passing C framing and NAND assertions,
 8 JS and 107 Python tests. Fault and short-return injection covers every normal
@@ -409,7 +409,7 @@ or acquisition transport yet; no physical NAND compatibility or backup is claime
 
 The next stage implements the identity-only command-table adapter, RAM entry and
 completion-after-cleanup result publication. Design, route comparison and
-remaining qualification (snowsky-disc-boot `docs/nand-identity.md`). No USB access or physical execution
+remaining qualification (snowsky-disc-boot `docs/dev/nand/nand-identity.md`). No USB access or physical execution
 occurred. Firmware images, browser/service behavior and external inputs are unchanged.
 
 `work/sfc-identity-conformance.log` records C framing/read-core/SFC assertions,
@@ -433,7 +433,7 @@ ignored; this record does not qualify SPL/DDR, NAND, ROM return or installation.
 
 ## Bounded host ROM RAM transport — 2026-09-24
 
-The RAM transport (snowsky-disc-boot `docs/ram-transport.md`) now provides separate `ram-check` and
+The RAM transport (snowsky-disc-boot `docs/dev/usb-boot/ram-transport.md`) now provides separate `ram-check` and
 `identity` modes with exact plan approval, pinned input preparation, one claimed
 interface, finite control/bulk calls, no retry/reconnect, full/partial readback
 evidence and explicit failed/uncertain outcomes. No physical USB operation was
@@ -474,7 +474,7 @@ observation, not failed DDR initialization or a completed physical RAM check.
 
 `work/ram-observation-001/result.json` has SHA-256
 `9940909c9378909f9fcfeedde5f7e425e9c36221ace9690e9554164f19ded1ad`;
-the observation record (snowsky-disc-boot `docs/ram-transport.md`) retains session
+the observation record (snowsky-disc-boot `docs/dev/usb-boot/ram-transport.md`) retains session
 context and limits. Raw runtime files stay ignored. The existing synthetic
 zero/multiple-target and cleanup test was rerun successfully, recorded in
 `work/ram-observation-001-regression.log`; no behavior, profile or payload changed.
@@ -485,7 +485,7 @@ The owner separately authorized a second run after confirming the player had
 been disconnected for the first. Session `272d982b-0c05-41c2-bc9d-dff5e28818e1`
 received `X2000`, sent 8,056 SPL bytes and read 8,056 SRAM bytes, but their contents
 did not match. The sequence stopped with no SPL/identity execution request and
-no DDR/RAM/NAND acceptance. Evidence and cause investigation (snowsky-disc-boot `docs/ram-transport.md`).
+no DDR/RAM/NAND acceptance. Evidence and cause investigation (snowsky-disc-boot `docs/dev/usb-boot/ram-transport.md`).
 
 The retained result SHA-256 is
 `e48cc943b45ea1d07b760c053b0be5b62060a63d23920c3561ec89470c31befc`.
@@ -505,7 +505,7 @@ plans retain new transport-source hashes; no further physical attempt occurred.
 The owner explicitly authorized one run of corrected RAM-check plan
 `68bfc3abedd04374fcdffe59cecb2df106104404c9115bf3fa8d3b1126871715`.
 Session `f84de23c-5d8c-4995-90f6-67f5872b88af` completed in about 2.36 seconds
-with `ram-roundtrip-observed`. Scope and evidence (snowsky-disc-boot `docs/ram-transport.md`).
+with `ram-roundtrip-observed`. Scope and evidence (snowsky-disc-boot `docs/dev/usb-boot/ram-transport.md`).
 Exact SPL readback, post-execution CPU reply, clean stage-9 DDR diagnostics and
 both 70,012-byte RAM pattern passes succeeded. Cleanup reported no errors.
 There was one SPL execution and no identity execution or NAND command.
@@ -530,7 +530,7 @@ Session `a84d5658-b286-4937-a9de-d1e4ba28f386` returned
 C0=`0x00`, one readiness poll and five NAND transactions. The core returned
 `NR_OK` with the expected completion, nonce and sequence; cleanup had no errors.
 SPL/DDR, both reserved-region RAM passes and every input readback passed first.
-Evidence and interpretation limits (snowsky-disc-boot `docs/ram-transport.md`).
+Evidence and interpretation limits (snowsky-disc-boot `docs/dev/usb-boot/ram-transport.md`).
 
 `work/identity-observation-001/result.json` SHA-256:
 `437ec64fde27c0f54651221882a6a91c446d93437899e5717f8405b8bf1d907a`.
@@ -555,7 +555,7 @@ comparison matched all 100,663,296 padded bytes. Offline reconstructions checked
 27,844 writer-session calls and 42,220 collector-session calls. The owner then
 confirmed normal stock UI loading and operation after reboot. Full evidence,
 session/hash provenance, ECC counts and limits are in the
-candidate installation observation (snowsky-disc-boot `docs/candidate-installation-observation.md`).
+candidate installation observation (snowsky-disc-boot `docs/dev/observations/candidate-installation-observation.md`).
 
 The 13 writer transport and 11 installation-review synthetic tests passed again.
 Only the exact reviewed admission boolean changed; production sources and

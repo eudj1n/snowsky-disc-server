@@ -4,8 +4,8 @@ Communicate in Russian; write source documentation and comments in English.
 This repository is **snowsky-disc-server**, the native service gateway of the
 SNOWSKY DISC player: admission, the guarded bridge to the stock protocol
 ports, the store, the apps on the card, the reviewed catalogs and the tools
-around them. It runs as the boot layer's `service` package (sibling
-snowsky-disc-boot, `docs/contract.md`). Browser UI, cloud and voice clients
+around them. It runs as the boot layer's package, its controller under boot
+API 2 (sibling snowsky-disc-boot, `docs/dev/boot/contract.md`). Browser UI, cloud and voice clients
 live in separate projects and consume the contract published here. Read
 docs/plan.md and docs/architecture.md before extending it.
 
@@ -23,7 +23,10 @@ docs/plan.md and docs/architecture.md before extending it.
   an image or a package.
 - Commit each completed stage, including its tests and documentation. Keep
   generated runtime evidence out of commits. Keep docs/plan.md as the canonical
-  plan and mark completed items with evidence.
+  plan of open work (owner, 2026-10-10): remove an item once it is done, since
+  the commits keep its history; before removing it, move what later work needs
+  (facts about the player and stock, pitfalls, why a design is so, procedures)
+  into the documentation.
 - README.md is for end users. Put build, test and architecture instructions in
   docs/development.md and related developer docs.
 - No physical connections, flashing, card writes on the owner's player, public

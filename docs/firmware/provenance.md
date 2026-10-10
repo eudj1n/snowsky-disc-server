@@ -25,3 +25,9 @@ The original host ROM probe uses the CPU-info request shape observed in diskOS
 implementation was copied or bundled. Optional physical acquisition uses a
 separately installed libusb library through its public C ABI; that library is
 not distributed here. Synthetic CI substitutes the ABI without loading libusb.
+
+miniz 3.0.2 (its `tinfl`, the app installer's inflate) and Monocypher 4.0.2
+(Ed25519 for the server's updates) are vendored with their pins and licenses
+in `device/vendor/<name>/README.md`. `device/src/sha256.c` is
+snowsky-disc-boot's SHA-256, and `scripts/ed25519.py` is RFC 8032's reference
+code.

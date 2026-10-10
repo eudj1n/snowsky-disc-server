@@ -10,7 +10,7 @@ info:
     Stage B. Paths marked `x-stage: B` are planned in the next image and not yet
     served by the installed engineering build; everything else is live and
     covered by the conformance suite. The prose contract is
-    `docs/gateway-contract.md`; the stock command surface a client may ask the
+    `docs/contract/gateway-contract.md`; the stock command surface a client may ask the
     gateway to forward is the reviewed catalog `firmware/commands/v<version>.json`,
     published with each bundle as `commands.json`.
 servers:
@@ -64,7 +64,7 @@ paths:
       description: Bodyless GET without a query. Versions and the source commit, the image's identity, which release serves the page, the card, the database facts, the supervisor's restarts and the newest service messages; no credential, track or user file.
       responses:
         '200':
-          description: "{service:{name, version, build, api, uptime, supervised (true under the boot layer)}, image (always null), boot:{decision, controller, service (the same, its earlier name), ui, menu, services:{<name>:{status, report}}} (the boot layer's boot.json, this server's controller.json or else service.json, ui.json, menu.json, and each service's status and own status.json; or null outside it), ports:{apps, manager} (in effect), page:{source, release}, card:{owned}, database:{state, schema, bytes, plays, records, trash, writes:{failed, lastFailure, lastSuccess, reason}}, restarts:[] (always empty), log:[{t, m}]}"
+          description: "{service:{name, version, build, homepage, api, uptime, supervised (true under the boot layer)}, image (always null), boot:{decision, controller, service (the same, its earlier name), ui, menu, services:{<name>:{status, report}}} (the boot layer's boot.json, this server's controller.json or else service.json, ui.json, menu.json, and each service's status and own status.json; or null outside it), ports:{apps, manager} (in effect), page:{source, app, version, homepage}, player:{language} (stock's interface language as the page's code, or null), card:{owned}, database:{state, schema, bytes, plays, records, trash, writes:{failed, lastFailure, lastSuccess, reason}}, restarts:[] (always empty), log:[{t, m}]}"
           content:
             application/json:
               schema: { type: object, required: [service, image, page, card, database, restarts, log] }
@@ -561,7 +561,7 @@ paths:
         is installed, else the only app installed, else null (then `/` redirects
         to the manager). `chosen` is the manager's choice (null without one).
       responses:
-        '200': { description: "{default, chosen, apps:[{name, version, default}], image: false}" }
+        '200': { description: "{default, chosen, apps:[{name, version, homepage, default}], image: false}" }
     post:
       tags: [manager]
       summary: Install the app a zip holds (the manager's port only)
