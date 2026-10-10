@@ -23,7 +23,10 @@ docs/plan.md and docs/architecture.md before extending it.
   an image or a package.
 - Commit each completed stage, including its tests and documentation. Keep
   generated runtime evidence out of commits. Keep docs/plan.md as the canonical
-  plan and mark completed items with evidence.
+  plan of open work (owner, 2026-10-10): remove an item once it is done, since
+  the commits keep its history; before removing it, move what later work needs
+  (facts about the player and stock, pitfalls, why a design is so, procedures)
+  into the documentation.
 - README.md is for end users. Put build, test and architecture instructions in
   docs/development.md and related developer docs.
 - No physical connections, flashing, card writes on the owner's player, public
