@@ -9,7 +9,7 @@ guards described by a reviewed command catalog, and carries the engineering
 tooling. Stock mq_ui and mq_player remain in place. No Node/Python runtime is
 required on the player; host Python is build/test/publication tooling. The
 external contract is [`openapi.yaml`](../openapi.yaml) and the
-[gateway contract](gateway-contract.md); client logic lives in separate
+[gateway contract](contract/gateway-contract.md); client logic lives in separate
 projects. The 2026-09-25 concept revision is recorded in the plan (snowsky-disc-web `docs/plan.md`).
 
 ## Decisions — 2026-09-23
@@ -19,7 +19,7 @@ projects. The 2026-09-25 concept revision is recorded in the plan (snowsky-disc-
 - CivetWeb provides HTTP/WebSocket transport. Pin the exact source commit;
   preserve its MIT license. Disable TLS, scripting, CGI and filesystem serving.
   This was the original embedded-assets configuration. The implemented
-  [SD webroot](sd-webroot.md) adds only confined static-file responses in the
+  [SD webroot](apps/sd-webroot.md) adds only confined static-file responses in the
   native service; it does not enable CGI, uploads or general CivetWeb file
   serving. This local prototype is not a LAN-distribution security acceptance.
 - The service owns one TCP channel only while a browser explicitly connects.
@@ -35,7 +35,7 @@ projects. The 2026-09-25 concept revision is recorded in the plan (snowsky-disc-
   bounded worker count. Public pairing/TLS are unresolved deployment decisions.
 - Use loopback for the companion-to-stock connection. V2.57's wildcard listeners
   become available after network readiness; no Ethernet/Wi-Fi address selection
-  or automatic command replay is needed. See [offline boot](offline-boot.md).
+  or automatic command replay is needed. See [offline boot](stock/offline-boot.md).
 - The embedded diagnostic page is a small RU/EN engineering interface and the
   fallback without a card. Product applications are published on the card by
   separate projects against the gateway contract.
@@ -49,7 +49,7 @@ integration orchestration; `docs/` owns plans and evidence. Add packages/control
 ## Emulator gate acceptance
 
 Stage 0 is complete for the read-only native prototype on the pinned disposable
-V2.57 emulator, including [ten-minute resource acceptance](resource-soak.md).
+V2.57 emulator, including [ten-minute resource acceptance](validation/resource-soak.md).
 The owner prioritizes the native deployment gate (snowsky-disc-boot `docs/native-deployment.md`) before
 full browser foundation work. Its first artifact is an offline companion-only
 V2.57 candidate with a loopback boot hook and a matching stock restore image.
@@ -197,5 +197,5 @@ card-copy/reload cycle instead of another rootfs write. The engineering
 listener is reachable on local interfaces only while an exact SD marker
 admits each remote request; remote control remains read-only and has one
 owner. Product pairing, TLS and mutation authorization remain separate
-acceptance work. See the [SD design](sd-webroot.md) and the
+acceptance work. See the [SD design](apps/sd-webroot.md) and the
 build/write command map (snowsky-disc-boot `docs/build-and-flash.md`).

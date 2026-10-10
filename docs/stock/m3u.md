@@ -151,7 +151,7 @@ runs on the host CPU through qemu-user); the player is slower.
   plays that row of the same queue from its start; the queue is unchanged.
 - **An idle power-off.** Paused, the guest powered itself off after 305 s
   (`POWER_SAVE` 300; the owner's setting may differ). Protocol reads do not
-  keep it on (docs/idle-supervision.md). After a boot stock reported the same
+  keep it on (docs/stock/idle-supervision.md). After a boot stock reported the same
   track paused, `LIST_SONG_0` kept the queue, `MEMORY_PLAY` held the queue row
   and the position (23,000 ms), and `0100` with the position and `0000` played
   that row of the same queue.

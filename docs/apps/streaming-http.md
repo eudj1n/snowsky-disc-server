@@ -87,7 +87,7 @@ three-track synthetic catalog and requests an empty fourth page. Every page must
 preserve `total-num: 3`; no invented count, reordering or loss of Unicode names.
 It runs before and after native-only restart in the integration suite.
 
-Execution results and binary fingerprint are recorded in [validation](validation.md).
+Execution results and binary fingerprint are recorded in [validation](../validation/validation.md).
 Ignored evidence: `work/stream-red.log`, `work/stream-conformance.log`,
 `work/stream-mips-build.log`, `work/stream-mips-conformance.log`,
 `work/stream-integration.log`, `work/native-smoke.json`.

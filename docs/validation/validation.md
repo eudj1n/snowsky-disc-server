@@ -2,7 +2,7 @@
 
 > Evidence of the combined images' guest stack (a direct boot, the companion started by a guest-side
 > supervisor), kept as history. The gateway is now checked as the boot layer's package on a stock-init
-> guest: [development](development.md#disposable-guest).
+> guest: [development](../development.md#disposable-guest).
 
 ## Result and scope
 
@@ -105,12 +105,12 @@ sample-perfect audio or absence of all glitches.
    errno 131) and WS 1011. Direct TCP reproduces the same reset without our service.
    Tracing shows stock retains the old listener, then closes and recreates it on
    disconnect, resetting a queued replacement connection. [Handover evidence and
-   regression](handover.md) record successful explicit recovery without replay.
+   regression](../stock/handover.md) record successful explicit recovery without replay.
    Seamless takeover is not claimed; one-owner playback coexistence remains valid.
 4. Catalog's original 3-second wait covered headers only. A new regression
    reproduced stalled/dripping-body hangs. A local monotonic client deadline now
    bounds the entire fetch; one catalog reservation keeps health/WS responsive.
-   [Native hardening evidence](native-lifecycle.md) documents the patch and tests.
+   [Native hardening evidence](../stock/native-lifecycle.md) documents the patch and tests.
 5. A timed-out diagnostic read previously left its connection reusable, so a
    late same-tag response could satisfy another read. The session now retires
    immediately, ignores late events and clears browser observations. Local IDs
@@ -118,24 +118,24 @@ sample-perfect audio or absence of all glitches.
    the physical player answered `0202` only with `a60a/0010` while stopped, the
    `a202` case was aligned with the reference controller: the observation
    becomes unknown and the connection stays open. [Power/network
-   evidence](power-network.md) also records a confirmed stock idle power request
+   evidence](../stock/power-network.md) also records a confirmed stock idle power request
    and the original viewer-free supervision gap, addressed by the subsequent
-   [idle-supervision stage](idle-supervision.md).
+   [idle-supervision stage](../stock/idle-supervision.md).
 6. The development launcher required an Ethernet IP before starting the native
    process. The offline-boot regression reproduced this. Stock V2.57 listeners
    bind wildcard once networking becomes ready, so the launcher now consistently
-   uses loopback. [Offline evidence](offline-boot.md) confirms recovery without
+   uses loopback. [Offline evidence](../stock/offline-boot.md) confirms recovery without
    restarting the companion; no native executable changes were required.
 7. The viewer-free adapter left stock poweroff markers unconsumed. A bounded
    container-side observer now delegates to the reference shutdown consumer.
    Explicit boot first quiesces that observer; starting only the companion after
-   poweroff is rejected. [Idle supervision](idle-supervision.md) records natural
+   poweroff is rejected. [Idle supervision](../stock/idle-supervision.md) records natural
    shutdown and recovery, without firmware timer/input changes.
 8. Real V2.57 catalog responses right-pad Content-Length with spaces. Streaming
    initially rejected this legal HTTP whitespace; a failing synthetic regression
    reproduced it. The numeric validator now permits surrounding HTTP whitespace
    while rejecting internal spaces, nondecimal suffixes and overflow.
-   [Streaming contract and evidence](streaming-http.md).
+   [Streaming contract and evidence](../apps/streaming-http.md).
 
 ## Exact inputs
 
@@ -194,7 +194,7 @@ pagination, playback coexistence, owner handover/recovery and companion-only
 restart. The first firmware failure and padded-header regression led to the
 documented validator fix. Final real-browser identity/state/streamed catalog and
 explicit disconnect passed, with no warning/error console entries. The native
-service still rejects all uploads. [Details and scope](streaming-http.md).
+service still rejects all uploads. [Details and scope](../apps/streaming-http.md).
 
 Resource stage: `work/soak-conformance.log` records passing host C assertions,
 8 JS tests and 46 Python tests (32 native network, 9 observer, 5 soak metrics).
@@ -266,7 +266,7 @@ their earlier acceptance remains evidence for unchanged native behavior.
 
 The existing stack was explicitly pinned after reading its stock version
 metadata. The external repositories remain clean. No device/USB helper was
-executed and no physical writes occurred. [Firmware promotion and RE workflow](firmware-compatibility.md)
+executed and no physical writes occurred. [Firmware promotion and RE workflow](../firmware/firmware-compatibility.md)
 and writer findings, debug-mode design and remaining work (snowsky-disc-boot `docs/deployment-writer-review.md`)
 define the next gate. Stage 1 remains deferred.
 

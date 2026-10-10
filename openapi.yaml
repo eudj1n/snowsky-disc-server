@@ -10,7 +10,7 @@ info:
     Stage B. Paths marked `x-stage: B` are planned in the next image and not yet
     served by the installed engineering build; everything else is live and
     covered by the conformance suite. The prose contract is
-    `docs/gateway-contract.md`; the stock command surface a client may ask the
+    `docs/contract/gateway-contract.md`; the stock command surface a client may ask the
     gateway to forward is the reviewed catalog `firmware/commands/v<version>.json`,
     published with each bundle as `commands.json`.
 servers:

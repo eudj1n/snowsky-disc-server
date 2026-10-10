@@ -2,7 +2,7 @@
 
 > Evidence of the combined images' guest stack (a direct boot, the companion started by a guest-side
 > supervisor), kept as history. The gateway is now checked as the boot layer's package on a stock-init
-> guest: [development](development.md#disposable-guest).
+> guest: [development](../development.md#disposable-guest).
 
 ## HTTP fix
 
@@ -17,7 +17,7 @@ The local CivetWeb build now assigns outgoing HTTP clients one **monotonic
 body/header reads use the remaining budget. Receiving another fragment does not
 renew the deadline. This implementation is scoped to our plaintext IPv4 client;
 it is not validation of TLS or the library's WebSocket client. See the
-[vendor patch notes](../device/vendor/civetweb/README.md).
+[vendor patch notes](../../device/vendor/civetweb/README.md).
 
 The service admits one catalog request at a time (others receive 503). Its
 256 KiB buffer limit remains; deadline/truncation/oversize returns 502 without

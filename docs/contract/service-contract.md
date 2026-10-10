@@ -194,7 +194,7 @@ failure, and each change of reason, is also a service message.
 
 ## Apps and catalogs
 
-Combined-009 ([Apps on the card](sd-webroot.md)): `--apps <card>/Apps`
+Combined-009 ([Apps on the card](../apps/sd-webroot.md)): `--apps <card>/Apps`
 serves each app folder, Disc Player at `/` and any app at `/apps/<App>/`;
 apps live only on the card (owner, 2026-10-02): without the default app `/`
 answers 404 "No app is installed". `--catalog` holds the reviewed catalogs
@@ -277,7 +277,7 @@ the response **without its final chunk**: HTTP status alone does not establish
 completion. Clients must successfully consume the entire body before publishing
 a new catalog. There is no retry or appended error body. A cancelled reader may
 retain the reservation until the upstream read deadline (at most 3 seconds).
-See [streaming evidence and scope](streaming-http.md).
+See [streaming evidence and scope](../apps/streaming-http.md).
 
 `/api/data/<query>` is the read-only data level: it executes one named query
 from the card's `queries.json` (reviewed per firmware profile, bound to the
@@ -719,7 +719,7 @@ per file for the space view (about 780 requests on the owner's card).
 
 ## M3U lists
 
-Combined-009: M3U lists that stock plays by path (docs/m3u.md), in two
+Combined-009: M3U lists that stock plays by path (docs/stock/m3u.md), in two
 scopes (owner, 2026-09-29): `internal`, the service's own, hidden in
 `--internal-lists <card>/.disc/playlists` (a live queue for the player/browser
 switch, "play next"), and `external`, which the player's own file browser
@@ -853,7 +853,7 @@ the tag's track number when a library source plays, and 0 when a folder or a
 list plays; MY_LOVE is `UNIQUE(PATH, TRACK)`, so a file without a track
 number that is a favorite in a folder's or a list's context cannot be one in
 the library's too (409 "The file is a favorite in a list's or a folder's
-context, which stock keeps in its place"; guest evidence in docs/m3u.md).
+context, which stock keeps in its place"; guest evidence in docs/stock/m3u.md).
 Confirmation is the row read back after the commit: `200 {"songId",
 "favorite":true,"loveId","already"}`; 404 for an unknown song, 503 when the
 library is busy (nothing written), 500 when the result is not confirmed (not
@@ -879,7 +879,7 @@ any application bytes. This is not a command retry.
 A reset after admission closes WS with 1011 and releases the owner. The service
 does not reconnect or replay even the read-only handshake. The browser clears
 observations and enables an explicit Connect. A fresh connection may recover
-once the stock listener returns. See [handover evidence](handover.md); seamless
+once the stock listener returns. See [handover evidence](../stock/handover.md); seamless
 raw-client-to-native takeover is not guaranteed.
 
 FiiO records: four ASCII hex tag bytes + four ASCII hex total-byte-length digits
@@ -994,7 +994,7 @@ Streaming downstream writes share the request's remaining budget. Buffered
 catalog storage is at most 256 KiB plus one overflow byte; stream storage is 8 KiB.
 WS heartbeat interval 2 seconds with a bounded missed-pong count. Slow partial
 requests and resource exhaustion still require broader hardening before LAN use.
-The disposable [resource soak](resource-soak.md) checks fixed QEMU-host memory,
+The disposable [resource soak](../validation/resource-soak.md) checks fixed QEMU-host memory,
 thread and FD ceilings over ten minutes, temporarily enforcing a 64-FD soft
 limit on the companion. It does not configure a production/hardware RAM budget.
 

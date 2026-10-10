@@ -1,4 +1,4 @@
-"""Research inside the disposable guest: how stock V2.57 treats M3U lists (docs/m3u.md).
+"""Research inside the disposable guest: how stock V2.57 treats M3U lists (docs/stock/m3u.md).
 
 Generated media only, never a player. Tagged FLAC tones and a small three-track CUE image are
 scanned, one more file is left unscanned, and lists of several forms are written to the service's

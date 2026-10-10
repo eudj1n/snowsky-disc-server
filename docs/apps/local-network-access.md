@@ -41,7 +41,7 @@ Sources: [Chrome: Local Network Access](https://developer.chrome.com/blog/local-
 ## Lab check (2026-09-30)
 
 The service was built for the host and MIPS with `--cors-origin`
-([contract](gateway-contract.md#hosted-pages-over-local-network-access)).
+([contract](../contract/gateway-contract.md#hosted-pages-over-local-network-access)).
 The synthetic suite passed on both (407 host tests; 38 network tests on the
 MIPS executable inside the guest, including the new cross-origin class and
 the check that a preflight without a listed origin is refused).

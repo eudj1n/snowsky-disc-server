@@ -97,7 +97,7 @@ with the releases is in the [plan](docs/plan.md).
 ## For developers
 
 Start with [AGENTS.md](AGENTS.md), the [architecture](docs/architecture.md),
-the [gateway contract](docs/gateway-contract.md) and
+the [gateway contract](docs/contract/gateway-contract.md) and
 [`openapi.yaml`](openapi.yaml), and the [development guide](docs/development.md)
 for building, the disposable test player and releases; the
 [plan](docs/plan.md) records what was done and why.

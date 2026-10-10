@@ -11,9 +11,9 @@ The installed combined images carry the same gateway; their history and
 installation evidence stay in snowsky-disc-web. Every change is verified on
 the disposable V2.57 guest with the host and MIPS binaries. Card-side changes
 (applications, catalogs, markers) never need an image or a package: see the
-[gateway contract](gateway-contract.md), the [service contract](service-contract.md)
-and [`openapi.yaml`](../openapi.yaml). See [firmware compatibility](firmware-compatibility.md)
-for version selection and new-release acceptance, and [Apps on the card](sd-webroot.md)
+[gateway contract](contract/gateway-contract.md), the [service contract](contract/service-contract.md)
+and [`openapi.yaml`](../openapi.yaml). See [firmware compatibility](firmware/firmware-compatibility.md)
+for version selection and new-release acceptance, and [Apps on the card](apps/sd-webroot.md)
 for the apps and the card's catalog override.
 
 ## Contents
@@ -70,7 +70,7 @@ bash scripts/build.sh mips   # or DISC_TOOLCHAIN_IMAGE=<image> for a reviewed co
 
 The player's Linux 4.4.94 kernel executes floating-point branch delay slots
 from a user-stack trampoline while emulating the FPU, which killed a
-hard-float build on its first WebSocket ([corrected analysis](combined-browser-observation.md));
+hard-float build on its first WebSocket ([corrected analysis](validation/combined-browser-observation.md));
 qemu-user never reaches that path. `scripts/build.sh mips` fails unless
 `disc-service` reports `FP ABI: Soft float` and contains no FPU instructions.
 Output: `build/mips/disc-service` and `framing-test`, static MIPS
@@ -156,7 +156,7 @@ Stage it on a card for the recovery with Play with snowsky-disc-boot's
 ### Signed updates
 
 The manager takes a release as a signed `.update` stream
-(`docs/service-contract.md`, "The server's updates"). The owner's release key
+(`docs/contract/service-contract.md`, "The server's updates"). The owner's release key
 was created on 2026-10-02 (`update_file.py keygen`); its secret half is
 `~/.config/snowsky-disc/update.key` on the owner's computer (0600, outside
 every repository), its public half `keys/update-keys`, which every package
@@ -246,11 +246,11 @@ snowsky-disc-web. The boot without a network now uses the emulator's
 
 ## Scope and evidence
 
-What the gateway serves is the [service contract](service-contract.md) and
+What the gateway serves is the [service contract](contract/service-contract.md) and
 [`openapi.yaml`](../openapi.yaml); its design and decisions are in
 [architecture](architecture.md), its emulated acceptance in
-[validation](validation.md) and the documents linked from there, the inputs it
-derives from in [provenance](provenance.md). Hardware installation, cold boot
+[validation](validation/validation.md) and the documents linked from there, the inputs it
+derives from in [provenance](firmware/provenance.md). Hardware installation, cold boot
 and the physical resource budgets were accepted with the combined images
 (snowsky-disc-web); under the boot layer they are accepted again with the
 package. Emulator memory figures include QEMU.

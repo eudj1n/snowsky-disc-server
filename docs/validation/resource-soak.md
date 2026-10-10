@@ -2,7 +2,7 @@
 
 > Evidence of the combined images' guest stack (a direct boot, the companion started by a guest-side
 > supervisor), kept as history. The gateway is now checked as the boot layer's package on a stock-init
-> guest: [development](development.md#disposable-guest).
+> guest: [development](../development.md#disposable-guest).
 
 ## Scope and reproduction
 
@@ -45,7 +45,7 @@ exact native process identity and a free native control reservation.
   of both transitions. Five one-second playing intervals fit the 30-second
   generated track and exercise local/native coexistence without changing the
   stock idle policy. This is **not** another natural-idle test; that separate
-  acceptance remains documented in [idle supervision](idle-supervision.md).
+  acceptance remains documented in [idle supervision](../stock/idle-supervision.md).
 
 The test never recovers a failed handshake or operation by replaying it.
 Any failure ends this observation; a recovery boot is not counted as a stable
@@ -78,7 +78,7 @@ PID and start ticks before restoring; it never applies limits to a replacement.
 If the process disappears, the partial report records failed cleanup and the
 outer test runner performs explicit guest recovery.
 
-Application limits remain those in the [service contract](service-contract.md):
+Application limits remain those in the [service contract](../contract/service-contract.md):
 four HTTP workers, one WS owner, one shared catalog reservation, 8 KiB request
 headers/stream buffer, bounded frames, finite transfer deadlines and no replay.
 The synthetic host/MIPS suite covers stalled HTTP and downstream backpressure;

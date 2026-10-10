@@ -76,7 +76,7 @@ withholds pongs and requires owner release without closing its socket first.
 
 Known limitation: immediate active-playback takeover can enter the old stock
 listener backlog and be reset. Direct TCP reproduces it without our service.
-See [handover evidence](../docs/handover.md). The synthetic RST test requires WS
+See [handover evidence](../docs/stock/handover.md). The synthetic RST test requires WS
 1011, owner cleanup, exactly one forwarded handshake, no hidden reconnection,
 and recovery only through an explicit new WS connection.
 There is no hardware install, full Controller parity, soak, upload or cloud test.

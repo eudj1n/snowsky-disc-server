@@ -175,7 +175,7 @@ reference and privately acquired OTA, use disposable volumes, and avoid uploadin
 firmware, private media or decrypted binaries as public artifacts.
 
 Local evidence, including the subsequent USB stage, is recorded in
-[validation](validation.md). The full Linux host C/service suite has not been
+[validation](../validation/validation.md). The full Linux host C/service suite has not been
 run locally; the available emulator image lacks a host C compiler. MIPS USB
 fixture tests and Python profile/deployment checks have run under Linux. The
 workflow itself has not been executed by GitHub in this task.

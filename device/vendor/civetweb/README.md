@@ -25,7 +25,7 @@ one HTTP **connection**, not the shared server context. The stock stream handler
 sets it once from the remaining end-to-end budget before response headers.
 Static web files and media reads renew it before each chunk they write, up
 to the end of the current throughput window and never past their overall cap
-(see `docs/sd-webroot.md`). Each nonblocking send/poll checks it; civetweb's chunk and
+(see `docs/apps/sd-webroot.md`). Each nonblocking send/poll checks it; civetweb's chunk and
 partial writes cannot renew it. While it is set, it replaces the per-write
 `request_timeout_ms` (which still bounds reading requests). The
 field is cleared with per-request state. It is not called on WebSockets, nor

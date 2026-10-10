@@ -1,4 +1,4 @@
-"""Research inside the disposable guest for combined-009 (docs/m3u.md): long M3U lists, a list in a
+"""Research inside the disposable guest for combined-009 (docs/stock/m3u.md): long M3U lists, a list in a
 visible folder, what a listener hears when the queue is swapped to a list, a seek right after a
 selection, and whether stock keeps its queue over a pause and over an idle power-off.
 

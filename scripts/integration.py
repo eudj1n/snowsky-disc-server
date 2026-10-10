@@ -24,7 +24,7 @@ parser.add_argument('--trash',action='store_true',help='Move a scanned probe fol
 parser.add_argument('--audio',action='store_true',help='Read generated card audio through the audio route, whole and in byte ranges')
 parser.add_argument('--about',action='store_true',help='Read the diagnostics document, the boot layer in it and the page from the card')
 parser.add_argument('--cue',action='store_true',help='Play a generated three-track CUE image: one play per track; a disliked CUE track is skipped')
-parser.add_argument('--m3u',action='store_true',help='Research stock M3U lists: forms, navigation, history, favorites (evidence for docs/m3u.md)')
+parser.add_argument('--m3u',action='store_true',help='Research stock M3U lists: forms, navigation, history, favorites (evidence for docs/stock/m3u.md)')
 parser.add_argument('--lists',action='store_true',help='Combined-009 routes on stock: an M3U list written, played through the gateway, replaced and deleted; a browser play in the history')
 parser.add_argument('--queue-research',action='store_true',help='Research for combined-009: long lists, a visible list folder, queue swaps heard in the audio capture, the queue over a pause and an idle power-off')
 args=parser.parse_args()

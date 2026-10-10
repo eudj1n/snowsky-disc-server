@@ -2,8 +2,8 @@
 
 The native gateway inside the player is the only thing client projects depend
 on. This document is the prose contract; the machine-readable surface is
-[`openapi.yaml`](../openapi.yaml) at the repository root, what an app is and
-how it is served is [Apps on the card](sd-webroot.md), the reviewed stock
+[`openapi.yaml`](../../openapi.yaml) at the repository root, what an app is and
+how it is served is [Apps on the card](../apps/sd-webroot.md), the reviewed stock
 command surface is `firmware/commands/v<version>.json` (carried by the image
 and read at `/api/contract/commands.json`), and the detailed behavior of the installed build is the
 [service contract](service-contract.md). Where this document says "Stage B",
@@ -131,14 +131,14 @@ The service admits such pages by their exact origin:
   other preflight gets 403.
 
 The lab checks and what remains are in
-[local-network-access.md](local-network-access.md).
+[local-network-access.md](../apps/local-network-access.md).
 
 ## HTTP surface
 
 Live routes: `/api/health`, `/api/catalog`, `/api/catalog/stream`,
 `/api/websocket`, `/api/contract/<name>.json`, `/api/apps`, and the apps'
 files at `/` (Disc Player) and `/apps/<App>/` (GET and HEAD for files;
-combined-009, see [Apps on the card](sd-webroot.md)). Ordinary routes accept bodyless GET without a query; the
+combined-009, see [Apps on the card](../apps/sd-webroot.md)). Ordinary routes accept bodyless GET without a query; the
 installed build answers 405 to any query string. Stage B accepts and ignores
 query strings on `/` and static files, so a single-page application may keep
 its navigation state in the URL (`/?view=album&name=…`), as the reference
@@ -256,7 +256,7 @@ and commands only on the engineering image) and are read at
 `/api/contract/`. Its own `origins.json` adds external origins to its policy.
 Installation is copying the folder onto the card (USB storage mode or a card
 reader); no image, no NAND write, no service restart. Details, the tooling
-and the trust model: [Apps on the card](sd-webroot.md).
+and the trust model: [Apps on the card](../apps/sd-webroot.md).
 
 ## Limits and budgets
 

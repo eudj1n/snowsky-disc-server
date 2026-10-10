@@ -1,6 +1,6 @@
 #ifndef DISC_LISTS_H
 #define DISC_LISTS_H
-/* M3U lists of the service's own (combined-009, docs/m3u.md): stock plays an
+/* M3U lists of the service's own (combined-009, docs/stock/m3u.md): stock plays an
  * .m3u file by its path through folder play and reads it when it is played,
  * so a list of any tracks becomes a queue on the player with one file write.
  * Each list is <folder>/<name>.m3u, UTF-8 with a BOM (so the player's screen

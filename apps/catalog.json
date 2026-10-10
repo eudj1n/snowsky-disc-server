@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "kind": "apps",
-  "description": "The apps this server offers for the card's Apps/ (docs/service-contract.md, \"Apps and catalogs\"), in the form of snowsky-disc-boot's catalogs: each names its release zip by SHA-256 and size, fetched from its url once published or taken from a local file with that digest. Apps live on the card; the package carries only this list.",
+  "description": "The apps this server offers for the card's Apps/ (docs/contract/service-contract.md, \"Apps and catalogs\"), in the form of snowsky-disc-boot's catalogs: each names its release zip by SHA-256 and size, fetched from its url once published or taken from a local file with that digest. Apps live on the card; the package carries only this list.",
   "entries": [
     {
       "name": "Disc Player",
