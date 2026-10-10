@@ -10,11 +10,12 @@ CPPFLAGS += -DDISC_BUILD='"$(DISC_BUILD)"'
 # build id instead, so that a release built later from the same sources has the same bytes
 # (2026-10-07: 2.57.3's package held the date its civetweb object was compiled).
 CPPFLAGS += -DBUILD_DATE='"$(DISC_BUILD)"'
-# A new build ID rebuilds main.o even when no source changed, so /api/about
-# never shows a stale one. Checked while the makefile is read, before make
-# looks at any file (it may compare times only to the second).
+# A new build ID rebuilds the objects that carry it (main.o, and civetweb.o through BUILD_DATE) even
+# when no source changed, so /api/about never shows a stale one and a release is the bytes a clean
+# build gives (2026-10-10: 2.57.6's package held civetweb's object of an earlier build). Checked
+# while the makefile is read, before make looks at any file (it may compare times only to the second).
 ifneq ($(DISC_BUILD),$(shell cat $(OUT)/build-id 2>/dev/null))
-$(shell mkdir -p $(OUT) && rm -f $(OUT)/main.o && printf '%s\n' '$(DISC_BUILD)' > $(OUT)/build-id)
+$(shell mkdir -p $(OUT) && rm -f $(OUT)/main.o $(OUT)/civetweb.o && printf '%s\n' '$(DISC_BUILD)' > $(OUT)/build-id)
 endif
 SQLITE_FLAGS = -DSQLITE_THREADSAFE=2 -DSQLITE_OMIT_LOAD_EXTENSION -DSQLITE_OMIT_DEPRECATED -DSQLITE_OMIT_SHARED_CACHE -DSQLITE_DEFAULT_MEMSTATUS=0 -DSQLITE_MAX_MMAP_SIZE=0 -DSQLITE_DEFAULT_CACHE_SIZE=-64 -DSQLITE_DQS=0 -DSQLITE_TEMP_STORE=3 -DSQLITE_LIKE_DOESNT_MATCH_BLOBS -DSQLITE_OMIT_PROGRESS_CALLBACK
 LDLIBS += -pthread -lm

@@ -91,7 +91,10 @@ the boot layer's: `2.57.1` was the server's first for FiiO's 2.57 (owner, 2026-1
 number is never used again, and 2.57.3's package held the date its civetweb object was compiled,
 so a build from its record commit was not the recorded package (2026-10-07). The build string
 is the build id since; `v2.57.4` is the first tag (owner, 2026-10-07: only the current server is
-published). `scripts/release.py` builds `disc-server-<version>.zip` (the release variant,
+published). 2.57.6 is recorded but not tagged either: its package held civetweb's object of an
+earlier local build (the makefile rebuilt only `main.o` for a new build id), so the release
+workflow's clean build differed (2026-10-10); `civetweb.o` is rebuilt with `main.o` since, and
+2.57.7 is the same work from a clean build. `scripts/release.py` builds `disc-server-<version>.zip` (the release variant,
 `build/mips/disc-service-release`) and `SHA256SUMS`, packaged with snowsky-disc-boot's
 `package.py` (`DISC_BOOT_DIR`); the workflows check that repository out at
 `scripts/boot-revision`. Debug packages and the signed `.update` file stay on the owner's
