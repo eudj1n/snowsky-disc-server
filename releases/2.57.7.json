@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "version": "2.57.7",
+  "firmware": "2.57",
+  "tag": "v2.57.7",
+  "buildId": "9634e5b95631",
+  "files": {
+    "disc-server-2.57.7.zip": {
+      "bytes": 840075,
+      "sha256": "a93bfa034fe14443687787a7b6ab4a7c86a65ec1cc87586fbf6957d31a348946"
+    }
+  },
+  "accepted": "2.57.6's work from a clean build (build 9634e5b95631; the makefile rebuilds civetweb's object for a new build id): its page lists the services beside it and FiiO's interface with the firmware's version; the release workflow's clean build gives the same binary (PR #16's CI). On the server's guest at emulator f1d5e33 with FiiO 2.57 and boot release 2.57.7's image (9e6448dd, boot API 2), 2026-10-10: installed by Play as the controller and confirmed, disc-health and disc-network 2.57.8 beside it confirmed, /api/about naming them and the firmware's profile, integration.py --about and manager_guest.py; install.py --guest from boot 2.57.8's archive with it, confirmed. On the owner's player, 2026-10-10: installed with install.py --packages from that archive through Working mode \u2192 USB Storage and the boot menu's Packages screen; Player software shows the services and FiiO 2.57 (the owner's report)",
+  "urls": {
+    "disc-server-2.57.7.zip": "https://github.com/eudj1n/snowsky-disc-server/releases/download/v2.57.7/disc-server-2.57.7.zip"
+  }
+}

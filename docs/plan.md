@@ -475,10 +475,15 @@ disc-network), each with its own status.
   clean build differed: the local package held civetweb's object of an
   earlier build (its build string `9780db847434`), since the makefile rebuilt
   only `main.o` for a new build id. Its tag removed before any release.
-- [ ] Release 2.57.7 (2026-10-10): 2.57.6's work from a clean build, the
-  makefile rebuilding `civetweb.o` with `main.o` for a new build id. On the
-  guest again, then the owner's player, then the record, the tag and the
-  publication before boot 2.57.8.
+- [x] Release 2.57.7 (2026-10-10): 2.57.6's work from a clean build, the
+  makefile rebuilding `civetweb.o` with `main.o` for a new build id (build
+  `9634e5b95631`; PR #16's CI built the same binary). On the guest with boot
+  release 2.57.7's image: installed by Play as the controller and confirmed,
+  disc-health and disc-network beside it, `integration.py --about`,
+  `manager_guest.py`; snowsky-disc-boot 2.57.8's archive installing it. On
+  the owner's player with `install.py --packages`: the page shows the
+  services and FiiO 2.57. Recorded (`releases/2.57.7.json`); tagged and
+  published before boot 2.57.8 (the owner, 2026-10-10: by Claude).
 
 ## Carried over
 
