@@ -461,6 +461,18 @@ disc-network), each with its own status.
   interface since power-on (snowsky-disc-boot `docs/dev/health.md`). Checked
   with stand-in answers (light, dark, phone, desktop); nothing shows without
   its report.
+- [x] FiiO's own interface in "Player software" as the boot menu lists it,
+  "FiiO 2.57" with the firmware's version (owner, 2026-10-10; PR #14).
+- [x] Release 2.57.6 (2026-10-10): the services and FiiO 2.57 in "Player
+  software", the server found as boot API 2's controller. On the guest with
+  boot release 2.57.7's image: installed by Play as the controller and
+  confirmed, disc-health and disc-network beside it, `integration.py
+  --about`, `manager_guest.py` (`scripts/emulator.py` reads the controller's
+  status as the server's), and snowsky-disc-boot 2.57.8's archive installing
+  it. On the owner's player with `install.py --packages` through Working mode
+  → USB Storage and the menu's Packages screen: the page shows the services
+  and FiiO 2.57. Recorded (`releases/2.57.6.json`); tagged and published
+  before boot 2.57.8, whose catalog names it.
 
 ## Carried over
 

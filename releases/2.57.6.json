@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "version": "2.57.6",
+  "firmware": "2.57",
+  "tag": "v2.57.6",
+  "buildId": "e549909dc297",
+  "files": {
+    "disc-server-2.57.6.zip": {
+      "bytes": 840076,
+      "sha256": "da9cfda316010d17cc117fcdeb09ddc45dea3cb44238dec3c570fef8134b27e5"
+    }
+  },
+  "accepted": "the build of 2.x at d1d91b6 (build e549909dc297): its page lists the services beside it and FiiO's interface with the firmware's version. On the server's guest at emulator f1d5e33 with FiiO 2.57 and boot release 2.57.7's image (9e6448dd, boot API 2), 2026-10-10: installed by Play as the controller and confirmed, disc-health and disc-network 2.57.8 beside it confirmed, /api/about naming them and the firmware's profile, integration.py --about (native smoke, coexistence, handover, the diagnostics document) and manager_guest.py (apps, room, a signed update activated, confirmed and rolled back); install.py --guest from boot 2.57.8's archive with it, confirmed. On the owner's player, 2026-10-10: installed with install.py --packages from that archive through Working mode \u2192 USB Storage and the boot menu's Packages screen; Player software shows the services and FiiO 2.57 (the owner's report)",
+  "urls": {
+    "disc-server-2.57.6.zip": "https://github.com/eudj1n/snowsky-disc-server/releases/download/v2.57.6/disc-server-2.57.6.zip"
+  }
+}
