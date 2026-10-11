@@ -19,12 +19,6 @@ this gateway runs on as a package: snowsky-disc-boot
   released on their own", 2026-10-10) or GitHub's releases API (anonymous,
   CORS, 60 requests an hour per address; the manager's policy then adds
   `connect-src https://api.github.com`).
-- [ ] The package names the `controller` role with `bootApi` 2. Boot API 2
-  is released (snowsky-disc-boot 2.57.7, 2026-10-09), but a boot layer of
-  API 1 (up to 2.57.6) refuses such a package, so the switch waits for the
-  owner's word that players of API 1 no longer need this server's updates.
-  It needs `scripts/boot-revision` past boot API 2 (the pinned `package.py`
-  knows no `controller`), `build_package.py` and `test_package_build`.
 - [ ] The gateway's resources on the player under the boot layer: threads
   (21 idle expected: main, the apps' master and 16 workers, the manager's
   master and 2 workers), descriptors (5 idle) and RSS, idle, with a session

@@ -144,7 +144,10 @@ static int read_manifest(const char *text, size_t length, const char *expected_n
         free(t); return refuse(problem, capacity, DISC_UPDATE_REFUSED, "The update's package.json lacks its name, version or role");
     }
     if (strcmp(out->name, expected_name)) { free(t); return refuse(problem, capacity, DISC_UPDATE_REFUSED, "This update is for %s, not %s", out->name, expected_name); }
-    if (strcmp(role, "service")) { free(t); return refuse(problem, capacity, DISC_UPDATE_REFUSED, "The update is not a service package"); }
+    /* The server's own package: the controller's role of boot API 2 (from 2.57.8), or API 1's service role before it. */
+    if (strcmp(role, "controller") && strcmp(role, "service")) {
+        free(t); return refuse(problem, capacity, DISC_UPDATE_REFUSED, "The update is not the server's package (its role is %s)", role);
+    }
     int files = disc_json_find(text, t, 0, "files");
     if (files < 0 || t[files].type != JSMN_OBJECT || t[files].size < 1 || t[files].size > DISC_UPDATE_FILES_MAX) {
         free(t); return refuse(problem, capacity, DISC_UPDATE_REFUSED, "The update lists no files, or too many");

@@ -17,8 +17,9 @@ beyond `/` redirecting to the manager when no app is chosen or alone (below).
 
 ## Supervision
 
-On the player the service is the boot layer's `service` package
-(snowsky-disc-boot `docs/dev/boot/contract.md`): boot starts it, waits for its ready
+On the player the service is the boot layer's `controller` package (boot API
+2; up to 2.57.7 API 1's `service` package, which boot API 2 runs as its
+controller too; snowsky-disc-boot `docs/dev/boot/contract.md`): boot starts it, waits for its ready
 file, confirms it after 180 s of running, restarts a confirmed version at
 most three times in ten minutes and rolls a new one back to the previous one
 at its first failure. The combined images' own supervisor (`--supervise`,

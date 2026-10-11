@@ -96,6 +96,13 @@ class UpdateStreamTests(unittest.TestCase):
         # Boot checked the update where it was written, before it took the slot.
         self.assertEqual((self.boot.parent/'verify.log').read_text(), f'verify service {self.work}\n')
 
+    def test_the_controller_s_package_is_the_server_s_too(self):
+        """From 2.57.8 the package names the controller's role of boot API 2 (owner, 2026-10-11); an older one, API 1's
+        service role. Boot's verify takes either as "service"."""
+        m = manifest(GOOD, role='controller', version='3')
+        self.assertEqual(self.stage(stream(m, b''.join(GOOD.values()))), ['ok', 'disc-server', '3', '2', str(sum(map(len, GOOD.values())))])
+        self.assertEqual((self.slot/'package.json').read_bytes(), m)
+
     def test_refusals_leave_the_slot_as_it_was(self):
         good = manifest(GOOD)
         payload = b''.join(GOOD.values())
@@ -106,7 +113,7 @@ class UpdateStreamTests(unittest.TestCase):
             'another key': (stream(good, payload, OTHER), 'The update is not signed by a key this server trusts'),
             'a changed manifest': (stream(good, payload)[:80] + b'X' + stream(good, payload)[81:], 'The update is not signed by a key this server trusts'),
             'another package': (stream(manifest(GOOD, name='other-ui'), payload), 'This update is for other-ui, not disc-server'),
-            'another role': (stream(manifest(GOOD, role='ui'), payload), 'The update is not a service package'),
+            'another role': (stream(manifest(GOOD, role='ui'), payload), "The update is not the server's package (its role is ui)"),
             'a mode boot refuses': (stream(manifest(GOOD, modes={'bin/run': '0700'}), payload), 'bin/run: its size, sha256 or mode is missing or invalid'),
             'a path listed twice': (stream(twice, payload), 'bin/run is listed twice'),
             'a changed file': (bytes(tampered), 'catalog/commands.json does not match its sha256'),

@@ -139,15 +139,17 @@ artifact (`<firmware>.0-ci.<commit>`, never a release). No secrets; actions pinn
 On the player the gateway is the boot layer's package
 (snowsky-disc-boot `docs/dev/boot/contract.md`). Boot API 2 (snowsky-disc-boot
 2.57.7, 2026-10-09) makes the server the `controller` and runs background
-`service` packages beside it. The package still names API 1's `service` role
-with `bootApi` 1: boot API 2 installs and runs it as its controller
-(`DISC_BOOT_ROLE=service`) and writes its status to both `controller.json`
-and `service.json`, and a boot layer of API 1 runs it as before, so one
-package serves players of either API. The gateway reads `controller.json`,
-else `service.json`. A package that names `controller` with `bootApi` 2 is
-refused by API 1; building one needs a `scripts/boot-revision` whose
-`package.py` knows that role (the pinned `c1a4903` knows `service`, `ui` and
-`menu`, and writes `homepage`). The package's `package.json` names the
+`service` packages beside it. From 2.57.8 the package names the `controller`
+role with `bootApi` 2 (owner, 2026-10-11: no player of boot API 1 is to be
+updated any more), so a boot layer of API 1 (up to 2.57.6) refuses it. The
+server up to 2.57.7 named API 1's `service` role with `bootApi` 1, which boot
+API 2 runs as its controller too (`DISC_BOOT_ROLE=service`, its status in both
+`controller.json` and `service.json`). The gateway reads `controller.json`,
+else `service.json`, and its update takes a package of either role; a server
+up to 2.57.7 refuses the controller's package as its update ("not a service
+package"), so such a player takes 2.57.8 from the card (the boot menu's
+Packages screen). `scripts/boot-revision` pins a snowsky-disc-boot whose
+`package.py` knows the controller (`e407cbd`). The package's `package.json` names the
 project's page (`build_package.HOMEPAGE`), which the boot layer's status
 passes to the manager.
 

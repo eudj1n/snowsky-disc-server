@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The gateway as the boot layer's `service` package (snowsky-disc-boot docs/dev/boot/contract.md).
+"""The gateway as the boot layer's `controller` package (snowsky-disc-boot docs/dev/boot/contract.md).
 
 Lays out a package folder (bin/disc-service, bin/run, catalog/), describes and
 zips it with snowsky-disc-boot's scripts/package.py (found through
@@ -175,12 +175,12 @@ def build(binary=None, output=None, version=None, engineering=False, profile_ver
     # The apps this server offers, by reference: the installer stages them on the card.
     shutil.copyfile(APPS_CATALOG, folder/'catalog/apps.json')
     (folder/'catalog/apps.json').chmod(0o644)
-    # The service role of boot API 1, which boot API 2 runs as its controller (snowsky-disc-boot
-    # docs/dev/boot/contract.md, "From boot API 1"): one package for players of either boot layer until
-    # boot API 2 is the released one; then it names the controller's role with bootApi 2.
-    manifest = package.describe(folder, NAME, version, 'service', 'bin/run', ready=30, profiles=[profile['version']], arch=arch,
-                                homepage=HOMEPAGE, boot_api=1)
-    package.check(folder, 'service', profile['version'], arch=arch)
+    # The controller's role of boot API 2 (owner, 2026-10-11: no player of boot API 1 is to be updated any more). A boot
+    # layer of API 1 (up to 2.57.6) refuses it; the server up to 2.57.7 named API 1's service role, which API 2 runs as
+    # its controller too (snowsky-disc-boot docs/dev/boot/contract.md, "From boot API 1").
+    manifest = package.describe(folder, NAME, version, 'controller', 'bin/run', ready=30, profiles=[profile['version']], arch=arch,
+                                homepage=HOMEPAGE, boot_api=2)
+    package.check(folder, 'controller', profile['version'], arch=arch)
     archive = package.zip_package(folder, output/f'{NAME}-{version}.zip')
     signed = update_file.pack(folder, sign_key, output/f'{NAME}-{version}.update') if sign_key else None
     return dict(name=NAME, version=version, engineering=engineering, debug=debug, arch=arch, folder=str(folder),
