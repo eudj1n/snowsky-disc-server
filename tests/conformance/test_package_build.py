@@ -1,4 +1,4 @@
-"""The gateway as the boot layer's service package (scripts/build_package.py).
+"""The gateway as the boot layer's controller package (scripts/build_package.py).
 
 Needs a snowsky-disc-boot checkout (DISC_BOOT_DIR, by default the sibling) for
 its package tool and, for the end-to-end case, its host fixture build of

@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "version": "2.57.8",
+  "firmware": "2.57",
+  "tag": "v2.57.8",
+  "buildId": "29ad43459cd5",
+  "files": {
+    "disc-server-2.57.8.zip": {
+      "bytes": 840226,
+      "sha256": "0f0f630156b96fdcccb9d5d03bdc1e07373ac2d93f835e9aca9cf81253c69610"
+    }
+  },
+  "accepted": "the build of 29ad434 (build 29ad43459cd5): the package names the controller's role with bootApi 2 (owner, 2026-10-11), and the manager's update takes the server's package in either role. On the server's guest at emulator f1d5e33 with FiiO 2.57 and boot release 2.57.7's image (9e6448dd, boot API 2), 2026-10-11: installed by Play as the controller and confirmed, disc-health and disc-network 2.57.9 beside it confirmed, /api/about naming them and the firmware's profile, manager_guest.py (apps, room, a signed update of the controller's role activated, confirmed and rolled back), integration.py --about on a fresh guest (the first stack held two stock players, which its handover check refuses); install.py --guest from boot 2.57.9's archive with it, confirmed",
+  "urls": {
+    "disc-server-2.57.8.zip": "https://github.com/eudj1n/snowsky-disc-server/releases/download/v2.57.8/disc-server-2.57.8.zip"
+  }
+}

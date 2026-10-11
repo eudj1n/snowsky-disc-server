@@ -7,6 +7,15 @@ on the [releases page](https://github.com/eudj1n/snowsky-disc-server/releases).
 Entries stay short; why is in the developer documents (`docs/`), how in the
 commits.
 
+## [2.57.8] — 2026-10-11
+
+- The server is the boot layer's controller, as boot release 2.57.7 and later
+  name it. A boot layer before 2.57.7 cannot install this version; a server up
+  to 2.57.7 takes it from the card (the boot menu's Packages screen), not as
+  an update in the manager.
+- The manager's update takes the server's package in either form, the
+  controller's or the earlier one.
+
 ## [2.57.7] — 2026-10-10
 
 - "Player software" lists the services the boot layer runs beside the server

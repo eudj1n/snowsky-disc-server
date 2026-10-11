@@ -8,7 +8,7 @@ the release variant only (build/mips/disc-service-release, without debug informa
 sources without local changes: scripts/build.sh mips); debug packages stay local, and the
 signed .update file for updates over the network is made on the owner's computer, never here.
 
-  disc-server-<version>.zip   the gateway as the boot layer's service package
+  disc-server-<version>.zip   the gateway as the boot layer's controller package
   SHA256SUMS
 
   python3 scripts/release.py build --version 2.57.1 --output dist
@@ -150,7 +150,7 @@ def changes(version, changelog=CHANGELOG):
 def notes(data, changelog=CHANGELOG):
     lines = [changes(data['version'], changelog), '', '---', '',
              f'The server {data["version"]} for FiiO\'s firmware {data["firmware"]} (build {data["buildId"]}), '
-             'the boot layer\'s service package.', '', f'Accepted on the emulator\'s guest: {data["accepted"]}.', '',
+             'the boot layer\'s controller package.', '', f'Accepted on the emulator\'s guest: {data["accepted"]}.', '',
              'Install it with snowsky-disc-boot\'s install.py, which takes it from the boot layer\'s catalog by its digest.', '',
              '| File | Bytes | SHA-256 |', '| --- | --- | --- |']
     lines += [f'| `{n}` | {f["bytes"]} | `{f["sha256"]}` |' for n, f in sorted(data['files'].items())]
