@@ -83,9 +83,10 @@ player's own language at first.
 ## What you need
 
 - A SNOWSKY DISC with firmware V2.57 and the
-  [DISC boot layer](https://github.com/eudj1n/snowsky-disc-boot), which
-  installs this server as its `service` package. Its documentation will
-  describe the installation.
+  [DISC boot layer](https://github.com/eudj1n/snowsky-disc-boot) 2.57.7 or
+  later, which installs this server as its controller; its
+  [installation guide](https://github.com/eudj1n/snowsky-disc-boot/blob/2.x/docs/install.md)
+  describes the installation.
 - The player on your Wi-Fi network (set up on the player itself) and a
   browser on the same network.
 

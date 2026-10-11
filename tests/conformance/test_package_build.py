@@ -1,4 +1,4 @@
-"""The gateway as the boot layer's service package (scripts/build_package.py).
+"""The gateway as the boot layer's controller package (scripts/build_package.py).
 
 Needs a snowsky-disc-boot checkout (DISC_BOOT_DIR, by default the sibling) for
 its package tool and, for the end-to-end case, its host fixture build of
@@ -93,7 +93,8 @@ class PackageBuildTests(unittest.TestCase):
         folder = Path(result['folder'])
         manifest = json.loads((folder/'package.json').read_text())
         self.assertEqual((manifest['name'], manifest['version'], manifest['role'], manifest['entry'], manifest['arch']),
-                         ('disc-server', '2026.10.02-test', 'service', 'bin/run', 'mips32el-linux-static'))
+                         ('disc-server', '2026.10.02-test', 'controller', 'bin/run', 'mips32el-linux-static'))
+        self.assertEqual(manifest['bootApi'], 2, 'the controller of boot API 2 (owner, 2026-10-11)')
         self.assertEqual(manifest['homepage'], 'https://github.com/eudj1n/snowsky-disc-server', 'the project page, as /api/about names it')
         self.assertEqual(sorted(manifest['files']), ['bin/disc-service', 'bin/run', 'catalog/apps.json', 'catalog/commands.json',
                                                      'catalog/compatibility.json', 'catalog/hosted.json', 'catalog/queries.json',
@@ -102,9 +103,9 @@ class PackageBuildTests(unittest.TestCase):
         self.assertEqual((folder/'catalog/apps.json').read_bytes(), (ROOT/'apps/catalog.json').read_bytes())
         # The owner's release key, so that the package takes the updates it signs.
         self.assertEqual((folder/'keys/update-keys').read_bytes(), (ROOT/'keys/update-keys').read_bytes())
-        self.package.check(Path(result['zip']).parent/'disc-server', 'service', PROFILE)
+        self.package.check(Path(result['zip']).parent/'disc-server', 'controller', PROFILE)
         with tempfile.TemporaryDirectory() as temp:
-            self.package.check(self.package.source_folder(result['zip'], temp), 'service', PROFILE)
+            self.package.check(self.package.source_folder(result['zip'], temp), 'controller', PROFILE)
         script = (folder/'bin/run').read_text()
         self.assertTrue(script.startswith('#!/bin/sh\n'))
         self.assertIn('exec "$DISC_BOOT_SLOT/bin/disc-service"', script)
@@ -190,12 +191,12 @@ class PackageBuildTests(unittest.TestCase):
             boot('start')
             status, until = None, time.monotonic() + 20
             while time.monotonic() < until:
-                path = player/'run/disc-boot/service.json'
+                path = player/'run/disc-boot/controller.json'
                 status = json.loads(path.read_text()) if path.exists() else None
                 if status and status['state'] == 'confirmed':
                     break
                 time.sleep(0.1)
-            log = player/'run/disc-boot/service/log'
+            log = player/'run/disc-boot/controller/log'
             self.assertEqual((status or {}).get('state'), 'confirmed', f'{status}; {log.read_text() if log.exists() else ""}')
             connection = http.client.HTTPConnection('127.0.0.1', port, timeout=5)
             connection.request('GET', '/api/about', headers={'Host': f'127.0.0.1:{port}'})
@@ -203,9 +204,9 @@ class PackageBuildTests(unittest.TestCase):
             self.assertEqual((about['boot']['decision']['reason'], about['boot']['service']['name'],
                               about['boot']['service']['version'], about['boot']['service']['state']),
                              ('recovery', 'disc-server', '7', 'confirmed'))
-            # The controller under boot API 2, the service under API 1 (the pinned boot revision may be either).
+            # The controller of boot API 2 (owner, 2026-10-11); its status keeps the server's earlier name too.
             roles = json.loads((player/'tmp/sdcard/.disc/boot/result.json').read_text())['roles']
-            self.assertEqual(roles.get('controller', roles.get('service'))['installed'], True)
+            self.assertEqual(roles['controller']['installed'], True)
             self.assertEqual(about['ports'], {'apps': port, 'manager': manager_port})
             manager = http.client.HTTPConnection('127.0.0.1', manager_port, timeout=5)
             manager.request('GET', '/', headers={'Host': f'127.0.0.1:{manager_port}'})
@@ -231,7 +232,7 @@ class PackageBuildTests(unittest.TestCase):
         self.package.stage(first['zip'], player/'tmp/sdcard', profile=PROFILE, arch='fixture')
         env = dict(os.environ, DISC_BOOT_FIXTURE_ROOT=str(player), DISC_BOOT_FIXTURE_TIMING='confirm=1,grace=2,card=2')
         boot = lambda *a: subprocess.run([str(BOOT_FIXTURE), *a], env=env, capture_output=True, text=True, timeout=30)
-        status_file, log = player/'run/disc-boot/service.json', player/'run/disc-boot/service/log'
+        status_file, log = player/'run/disc-boot/controller.json', player/'run/disc-boot/controller/log'
         counter = iter(range(1000))
 
         def wait(condition, timeout=30):
