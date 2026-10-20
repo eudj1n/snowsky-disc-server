@@ -13,6 +13,8 @@ commits.
   corrections once you allow that source, and the store keeps which
   headphones each equalizer preset Custom 1–10 holds (`eq_slots`), so every
   browser shows it.
+- Card only: the page may reach `lrc.red` for lyrics with word timings once
+  you allow that source.
 
 ## [2.57.8] — 2026-10-11
 

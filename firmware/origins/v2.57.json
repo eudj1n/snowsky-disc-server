@@ -92,6 +92,13 @@
         "connect-src"
       ],
       "purpose": "AutoEq's headphone corrections (github.com/jaakkopasanen/AutoEq at the revision the page pins): the results index and a headphone's fixed-band file, read as text once the owner allowed the source."
+    },
+    "lrcred": {
+      "origin": "https://lrc.red",
+      "directives": [
+        "connect-src"
+      ],
+      "purpose": "Lyrics with word timings (lrc.red): a search by the track's artist and title, and a result's LRC file, read as text once the owner allowed the source."
     }
   }
 }
