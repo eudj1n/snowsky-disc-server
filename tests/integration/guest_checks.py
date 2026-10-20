@@ -48,11 +48,13 @@ def native_resources():
 
 
 def service_log():
-    """The gateway's output as the boot layer keeps it (/run/disc-boot/service/log, capped), read
+    """The gateway's output as the boot layer keeps it (capped): /run/disc-boot/controller/log under
+    boot API 2, where the server is the controller, else /run/disc-boot/service/log (API 1); read
     through the root of a guest process: the guest's /run is its own."""
     for pid in guest_processes('disc-service') + guest_processes('mq_player'):
-        try:
-            return (Path('/proc')/str(pid)/'root/run/disc-boot/service/log').read_text(errors='replace')
-        except OSError:
-            continue
+        for role in ('controller', 'service'):
+            try:
+                return (Path('/proc')/str(pid)/f'root/run/disc-boot/{role}/log').read_text(errors='replace')
+            except OSError:
+                continue
     return ''
