@@ -331,6 +331,60 @@
       },
       "max_records": 20000,
       "max_record_bytes": 2048
+    },
+    "eq_slots": {
+      "description": "Which headphones each of the player's ten user presets (Custom 1-10) holds, since the stock protocol names no preset (owner, 2026-10-20: AutoEq). The key is the preset's number. The page writes a record after the player confirmed the preset's bands: the headphone, the measurement's source and rig, the form, where the correction came from ('autoeq') with its pinned revision and the result's path there, so every browser shows what a preset holds.",
+      "key": [
+        "slot"
+      ],
+      "fields": {
+        "slot": {
+          "type": "int",
+          "min": 1,
+          "max": 10,
+          "required": true
+        },
+        "headphone": {
+          "type": "text",
+          "max_length": 128,
+          "required": true
+        },
+        "source": {
+          "type": "text",
+          "max_length": 64
+        },
+        "rig": {
+          "type": "text",
+          "max_length": 64
+        },
+        "form": {
+          "type": "text",
+          "max_length": 16,
+          "pattern": "^(over-ear|in-ear|earbud)$"
+        },
+        "origin": {
+          "type": "text",
+          "max_length": 16,
+          "pattern": "^[a-z0-9_]+$"
+        },
+        "revision": {
+          "type": "text",
+          "max_length": 64,
+          "pattern": "^[A-Za-z0-9._-]+$"
+        },
+        "result": {
+          "type": "text",
+          "max_length": 512
+        },
+        "at": {
+          "type": "int",
+          "min": 0,
+          "max": 4102444800,
+          "required": true
+        }
+      },
+      "max_records": 10,
+      "max_record_bytes": 1024
     }
   }
 }

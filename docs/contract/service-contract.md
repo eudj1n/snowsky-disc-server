@@ -683,7 +683,15 @@ album key, or a run's id); for an artist or album `outcome` (`identified`,
 `review`, `missing`, `skipped`), `run` (the run that decided it, lowercase
 letters, digits and `-`) and `wrote` (JSON: what that run wrote, for its
 undo); for a run `state` (`running`, `paused`, `done`, `undone`) and
-`settings` (JSON up to 1 KiB); `at`; 20,000 records of 2 KiB.
+`settings` (JSON up to 1 KiB); `at`; 20,000 records of 2 KiB. `eq_slots`
+(2026-10-20, a card release) says which headphones each user preset of the
+equalizer (Custom 1–10) holds, since the stock protocol names no preset: key
+`slot` (1..10), `headphone` (the model, at most 128 bytes), `source` and
+`rig` (the measurement's), `form` (`over-ear`, `in-ear` or `earbud`),
+`origin` (where the correction came from, `autoeq`), `revision` (its pinned
+revision, up to 64 bytes of letters, digits, `.`, `_`, `-`), `result` (the
+result's path there, up to 512 bytes), `at`; 10 records of 1 KiB. The page
+writes a record once the player confirmed the preset's bands.
 
 Records are JSON objects of declared fields only, each checked; a field sent
 as `null` counts as absent. The service keeps the canonical value (declared

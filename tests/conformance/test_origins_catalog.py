@@ -20,7 +20,7 @@ class OriginsCatalogTests(unittest.TestCase):
                          "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self' https://musicbrainz.org "
                          "https://coverartarchive.org https://archive.org https://*.archive.org https://lrclib.net "
                          "https://www.wikidata.org https://commons.wikimedia.org https://upload.wikimedia.org "
-                         "https://thumb.wikimedia.org https://webservice.fanart.tv https://assets.fanart.tv; "
+                         "https://thumb.wikimedia.org https://webservice.fanart.tv https://assets.fanart.tv https://cdn.jsdelivr.net; "
                          "img-src 'self' https://coverartarchive.org https://archive.org "
                          "https://*.archive.org https://upload.wikimedia.org https://thumb.wikimedia.org; "
                          "frame-ancestors 'none'")

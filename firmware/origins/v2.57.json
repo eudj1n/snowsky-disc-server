@@ -85,6 +85,13 @@
         "connect-src"
       ],
       "purpose": "fanart.tv's images and their small previews, read as bytes and drawn on a canvas."
+    },
+    "jsdelivr": {
+      "origin": "https://cdn.jsdelivr.net",
+      "directives": [
+        "connect-src"
+      ],
+      "purpose": "AutoEq's headphone corrections (github.com/jaakkopasanen/AutoEq at the revision the page pins): the results index and a headphone's fixed-band file, read as text once the owner allowed the source."
     }
   }
 }
