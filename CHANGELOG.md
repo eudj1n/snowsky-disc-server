@@ -7,6 +7,13 @@ on the [releases page](https://github.com/eudj1n/snowsky-disc-server/releases).
 Entries stay short; why is in the developer documents (`docs/`), how in the
 commits.
 
+## [2.57.10] — 2026-10-21
+
+- Card only: the server offers Disc Player 1.1.0 by default (AutoEq's
+  headphone corrections, lrc.red's word timings, the album's identify window
+  that fits the screen), so the boot layer's installer puts it on the card
+  beside the server. The gateway itself is 2.57.9's.
+
 ## [2.57.9] — 2026-10-21
 
 - Card only: the page may reach `cdn.jsdelivr.net` for AutoEq's headphone
