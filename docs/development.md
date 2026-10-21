@@ -151,7 +151,9 @@ package"), so such a player takes 2.57.8 from the card (the boot menu's
 Packages screen). On the owner's player (2026-10-11) 2.57.8 runs as the
 controller beside the menu, disc-health and disc-network 2.57.9 (boot release
 2.57.9), as its `/api/about` reported; the owner reported that everything
-works correctly. `scripts/boot-revision` pins a snowsky-disc-boot whose
+works correctly. On the owner's player (2026-10-21) 2.57.9 runs as the
+controller from the published release, with Disc Player 1.1.0 on the card;
+the owner reported that everything works. `scripts/boot-revision` pins a snowsky-disc-boot whose
 `package.py` knows the controller (`e407cbd`). The package's `package.json` names the
 project's page (`build_package.HOMEPAGE`), which the boot layer's status
 passes to the manager.
