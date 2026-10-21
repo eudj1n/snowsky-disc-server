@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "version": "2.57.10",
+  "firmware": "2.57",
+  "tag": "v2.57.10",
+  "buildId": "29ad43459cd5",
+  "files": {
+    "disc-server-2.57.10.zip": {
+      "bytes": 840568,
+      "sha256": "143cbdb534d49bd28862d5d75d517385b53b7cc697a934d25a71608b63e7a581"
+    }
+  },
+  "accepted": "the build of 9a6e064 (build 29ad43459cd5, the gateway binary byte for byte 2.57.9's; the package differs from 2.57.9's in catalog/apps.json alone, which offers Disc Player 1.1.0, its release zip 85cad2e2faf609cbf00e6f4a1d6983305e5fa42455085a609fcaa44ca16e7b19 of 623253 bytes, in 1.0.0's place). Disc Player 1.1.0's release zip was accepted with this gateway build on the server's guest on 2026-10-21 (2.57.9's record: installed by app_bundle.py, the player's acceptance suite against the guest, 41 cases) and runs on the owner's player beside server 2.57.9 the same day. The guest was not run again for this package: what it runs is unchanged; the manifest and the apps catalog passed the synthetic tests (196)",
+  "urls": {
+    "disc-server-2.57.10.zip": "https://github.com/eudj1n/snowsky-disc-server/releases/download/v2.57.10/disc-server-2.57.10.zip"
+  }
+}
