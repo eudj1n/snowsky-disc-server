@@ -7,7 +7,7 @@ on the [releases page](https://github.com/eudj1n/snowsky-disc-server/releases).
 Entries stay short; why is in the developer documents (`docs/`), how in the
 commits.
 
-## [Unreleased]
+## [2.57.9] — 2026-10-21
 
 - Card only: the page may reach `cdn.jsdelivr.net` for AutoEq's headphone
   corrections once you allow that source, and the store keeps which
