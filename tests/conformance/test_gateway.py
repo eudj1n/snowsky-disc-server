@@ -818,8 +818,8 @@ class GatewayTests(unittest.TestCase):
         key = '?path=' + quote(track)
         status, doc = self.store('GET', '')
         self.assertEqual((status, doc['collections']['disliked']), (200, {'records': 0, 'max_records': 20000, 'skip': True}))
-        self.assertEqual(sorted(doc['collections']), ['artist_images', 'auto_playlists', 'disliked', 'enrichment', 'external_sources',
-                                                      'musicbrainz', 'pinned_albums', 'pinned_artists'])
+        self.assertEqual(sorted(doc['collections']), ['artist_images', 'auto_playlists', 'disliked', 'enrichment', 'eq_slots',
+                                                      'external_sources', 'musicbrainz', 'pinned_albums', 'pinned_artists'])
         self.assertEqual(self.store('GET', '/disliked/records'), (200, {'collection': 'disliked', 'records': [], 'total': 0, 'offset': 0,
                                                                        'truncated': False}))
         self.assertFalse(database.exists())  # reads create nothing
@@ -885,6 +885,17 @@ class GatewayTests(unittest.TestCase):
                     {'auto_background': 'no'}):
             record = {'source': 'fanarttv', 'at': 1, **bad}
             self.assertEqual(self.store('PUT', '/external_sources/record', record)[0], 400, bad)
+        # Which headphones a user preset of the equalizer holds (owner, 2026-10-20: AutoEq); the key is its number.
+        status, doc = self.store('PUT', '/eq_slots/record', {'slot': 3, 'headphone': 'Sennheiser HD 650', 'source': 'oratory1990',
+                                                             'rig': 'over-ear', 'form': 'over-ear', 'origin': 'autoeq',
+                                                             'revision': '7ae0f56d53074872b028649617a22bbb4232feb7',
+                                                             'result': 'oratory1990/over-ear/Sennheiser HD 650', 'at': 1790000520})
+        self.assertEqual((status, doc['key']), (200, [3]))
+        self.assertEqual(self.store('GET', '/eq_slots/record?slot=3')[1]['record']['value']['headphone'], 'Sennheiser HD 650')
+        for bad in ({'slot': 0}, {'slot': 11}, {'slot': '3'}, {'form': 'on-ear'}, {'origin': 'Auto Eq'}, {'revision': 'a b'},
+                    {'headphone': None}):
+            record = {'slot': 3, 'headphone': 'Sennheiser HD 650', 'at': 1, **bad}
+            self.assertEqual(self.store('PUT', '/eq_slots/record', record)[0], 400, bad)
         # The library enrichment's decisions and its runs (owner, 2026-10-02).
         status, doc = self.store('PUT', '/enrichment/record', {'kind': 'album', 'name': '["Fallen","Evanescence"]',
                                                                'outcome': 'identified', 'run': 'r-20261002-1',

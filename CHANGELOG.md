@@ -7,6 +7,15 @@ on the [releases page](https://github.com/eudj1n/snowsky-disc-server/releases).
 Entries stay short; why is in the developer documents (`docs/`), how in the
 commits.
 
+## [2.57.9] — 2026-10-21
+
+- Card only: the page may reach `cdn.jsdelivr.net` for AutoEq's headphone
+  corrections once you allow that source, and the store keeps which
+  headphones each equalizer preset Custom 1–10 holds (`eq_slots`), so every
+  browser shows it.
+- Card only: the page may reach `lrc.red` for lyrics with word timings once
+  you allow that source.
+
 ## [2.57.8] — 2026-10-11
 
 - The server is the boot layer's controller, as boot release 2.57.7 and later

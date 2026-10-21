@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "version": "2.57.9",
+  "firmware": "2.57",
+  "tag": "v2.57.9",
+  "buildId": "29ad43459cd5",
+  "files": {
+    "disc-server-2.57.9.zip": {
+      "bytes": 840514,
+      "sha256": "354edec7330f3facea046b4051ba5b80240a317ff0c6a619f454b5f5b17eb0b7"
+    }
+  },
+  "accepted": "the build of f8e020d (build 29ad43459cd5, the same gateway binary as 2.57.8: the catalogs change, commands.json and queries.json carrying the equalizer presets' headphones (eq_slots) and the reviewed origins admitting jsDelivr for AutoEq and lrc.red for lyrics with word timings). On the server's guest at emulator f1d5e33 with FiiO 2.57 and boot release 2.57.9's image (boot API 2), 2026-10-20: installed by Play as the controller and confirmed, disc-menu, disc-health and disc-network installed beside it and confirmed, integration.py --about and --store on the guest, and Disc Player 1.1.0 (the zip of 7fb647c) installed as the app by app_bundle.py; the player's acceptance suite against the guest, 40 cases; by hand in the page on the guest: AutoEq's correction for Sennheiser HD 650 (oratory1990) written to Custom 3 with its ten bands, master level and Q 1.41, the slot record kept in the store and the preset named after the headphones, and lrc.red's word timings found and saved beside the track. On 2026-10-21, with the same guest, the release zip of Disc Player 1.1.0 (bb525dc) installed by app_bundle.py and its acceptance suite against the guest passed whole, 41 cases (a first run had failed one case, the CUE track's position in the browser not moving within 20 s under the guest's load, and passed it on the second)",
+  "urls": {
+    "disc-server-2.57.9.zip": "https://github.com/eudj1n/snowsky-disc-server/releases/download/v2.57.9/disc-server-2.57.9.zip"
+  }
+}
