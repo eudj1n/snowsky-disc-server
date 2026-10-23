@@ -1,18 +1,21 @@
 #ifndef DISC_ORIGINS_H
 #define DISC_ORIGINS_H
-/* External origins of the page (combined-008): the card's reviewed
- * origins.json names https origins the page may connect to or load images
- * from; the service adds them to the Content-Security-Policy of the page it
- * serves. The header is built from card data, so every origin is checked
- * character by character (https, lower-case host labels, a wildcard only as
- * the first label, an optional port, nothing else). */
+/* External origins of a page: an app's own origins.json (combined-009;
+ * until combined-008 the image's, bound to the firmware profile) names https
+ * origins the page may connect to or load images from; the service adds them
+ * to the Content-Security-Policy of the pages it serves for that app. The
+ * header is built from card data, so every origin is checked character by
+ * character (https, lower-case host labels, a wildcard only as the first
+ * label, an optional port, nothing else). Up to 32 origins of 100 characters
+ * (owner, 2026-10-23: 16 was within one app's reach); the policy buffer holds
+ * them all in both directives. */
 #include <stddef.h>
 
-#define DISC_ORIGINS_MAX 16
+#define DISC_ORIGINS_MAX 32
 #define DISC_ORIGIN_MAX 100
-/* The policy without a catalog: the page stays same-origin. */
+/* The policy without a file: the page stays same-origin. */
 #define DISC_PAGE_POLICY "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; frame-ancestors 'none'"
-#define DISC_POLICY_MAX 2048
+#define DISC_POLICY_MAX 8192
 
 typedef struct {
     char origin[DISC_ORIGIN_MAX + 1];

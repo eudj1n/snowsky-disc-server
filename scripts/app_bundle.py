@@ -8,8 +8,8 @@ gateway serves from <card>/Apps/<App>/: Disc Player at /, any app at
 `check` verifies what every app must satisfy: the gateway's policy (no inline
 scripts, styles or handlers), relative references (an app works at / and at
 /apps/<App>/), names a FAT card keeps, sizes. `zip` packs a checked build as
-<App>/ with gzip twins of its text files, app.json and, when asked, the
-reviewed origins.json. `install` copies an app onto a mounted card, as a user
+<App>/ with gzip twins of its text files, app.json and the app's own
+origins.json, checked. `install` copies an app onto a mounted card, as a user
 does by hand but checked and without macOS leftovers (an explicit operator
 step). `catalog` writes the reviewed catalogs (compatibility, commands,
 queries, store, hosted pages) for an image, `install-catalog` into a card's .disc/catalog.
@@ -157,7 +157,12 @@ def app_files(source: Path) -> dict[str, bytes]:
 
 def build_app(source: Path, name: str = DEFAULT_APP, version: str | None = None,
               origins: dict | None = None, profile: dict | None = None, homepage: str | None = None) -> dict[str, bytes]:
-    """The files of an app as it goes onto a card: its own, app.json, origins.json and gzip twins."""
+    """The files of an app as it goes onto a card: its own, app.json, origins.json and gzip twins.
+
+    The app's external origins are its own (owner, 2026-10-23): the origins.json in the source
+    folder is checked and kept as it is, or `origins` (a dict, checked) is written in its place;
+    with a firmware profile the file is bound to it, as an image's was. An app with neither stays
+    same-origin."""
     check_name(name)
     if homepage is not None:
         check_homepage(homepage)
@@ -167,8 +172,10 @@ def build_app(source: Path, name: str = DEFAULT_APP, version: str | None = None,
         files['app.json'] = (json.dumps({k: v for k, v in described.items() if v is not None}, ensure_ascii=False,
                                         separators=(',', ':')) + '\n').encode()
     if origins is not None:
-        profile = profile or firmware_profile.load_profile()
-        files['origins.json'] = origins_catalog.origins_data(profile, origins)
+        files['origins.json'] = origins_catalog.origins_data(origins, profile)
+    elif 'origins.json' in files:
+        # The app's own file beside index.html (owner, 2026-10-23): kept as it is once it passes the service's rules.
+        origins_catalog.check_origins(json.loads(files['origins.json'].decode('utf-8')))
     for item in [item for item in files if item.endswith(COMPRESSIBLE)]:
         twin = gzip_twin(files[item])
         if twin is not None:
@@ -328,7 +335,7 @@ def main():
     pack.add_argument('--name', default=DEFAULT_APP)
     pack.add_argument('--version', help='Recorded in app.json for the diagnostics')
     pack.add_argument('--homepage', help="Recorded in app.json: the project's https link, shown by the manager")
-    pack.add_argument('--origins', action='store_true', help="Add the reviewed origins.json (Disc Player's providers)")
+    pack.add_argument('--origins', type=Path, help="An origins.json to pack in place of the app's own (checked either way)")
     inst = sub.add_parser('install', help='Copy an app (zip or folder) into <card>/Apps (explicit operator step)')
     inst.add_argument('--app', type=Path, required=True)
     inst.add_argument('--card', type=Path, required=True)
@@ -347,7 +354,7 @@ def main():
             print(json.dumps({'files': len(files), 'bytes': sum(map(len, files.values()))}, indent=2))
         elif args.action == 'zip':
             files = build_app(args.source, args.name, args.version,
-                              origins_catalog.load_origins() if args.origins else None, homepage=args.homepage)
+                              origins_catalog.load_origins(args.origins) if args.origins else None, homepage=args.homepage)
             print(json.dumps(zip_app(files, args.name, args.output), indent=2))
         elif args.action == 'install':
             if not args.confirm_card_write:

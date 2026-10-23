@@ -34,6 +34,11 @@ import stock_schema
 
 PROFILE = firmware_profile.load_profile()
 FINGERPRINT = firmware_profile.fingerprint(PROFILE)
+# An app's own origins.json (combined-009; owner, 2026-10-23), as Disc Player ships one, shortened.
+APP_ORIGINS = {'schema_version': 1, 'api': 1, 'origins': {
+    'musicbrainz': {'origin': 'https://musicbrainz.org', 'directives': ['connect-src'], 'purpose': 'metadata'},
+    'coverartarchive': {'origin': 'https://coverartarchive.org', 'directives': ['connect-src', 'img-src'], 'purpose': 'covers'},
+    'archive': {'origin': 'https://*.archive.org', 'directives': ['connect-src', 'img-src'], 'purpose': 'cover hosts'}}}
 SERIAL = '20260926000042'  # synthetic, in the player's 14-digit format
 # Since combined-008 the player's serial number is the only credential.
 TOKEN = SERIAL
@@ -174,7 +179,7 @@ class GatewayTests(unittest.TestCase):
             self.proc.terminate(); self.proc.wait(timeout=5)
 
     def publish(self, catalog=None, profile=None, store=None, origins=None, name='Disc Player'):
-        """Combined-009: an app on the card (Apps/<name>/, the source files and the reviewed origins.json)
+        """Combined-009: an app on the card (Apps/<name>/, the source files and the app's own origins.json)
         and the image's reviewed catalogs in a folder of their own; returns that folder and both paths."""
         out = self.root/f'out-{len(list(self.root.iterdir()))}'
         bundle.write_catalog(out/'catalog', bundle.catalog_files(profile or PROFILE, catalog, None, store))
@@ -184,8 +189,8 @@ class GatewayTests(unittest.TestCase):
         app.mkdir(parents=True)
         for item in self.source.iterdir():
             shutil.copy(item, app/item.name)
-        reviewed = origins if origins is not None else origins_catalog.load_origins()
-        (app/'origins.json').write_bytes(origins_catalog.origins_data(profile or PROFILE, reviewed))
+        reviewed = origins if origins is not None else APP_ORIGINS
+        (app/'origins.json').write_bytes(origins_catalog.origins_data(reviewed, profile or PROFILE))
         return out, {'app': app, 'catalog': out/'catalog'}
 
     def start(self, www, fingerprint=FINGERPRINT, extra=()):
@@ -1436,16 +1441,15 @@ class GatewayTests(unittest.TestCase):
             time.sleep(.2)
         self.assertEqual(audio(song, {'Range': 'bytes=0-0'})[:2], (206, data[:1]))
 
-    def test_the_page_policy_names_the_card_catalogs_external_origins(self):
-        from scripts import origins_catalog
-        reviewed = origins_catalog.load_origins()
+    def test_the_page_policy_names_the_apps_own_external_origins(self):
+        reviewed = APP_ORIGINS
         www, report = self.publish()
         self.start(www)
         release = report['app']
         for path in ('/', '/app.js', '/apps/Disc%20Player/app.js'):
             headers = self.http('GET', path)[2]
             self.assertEqual(headers['content-security-policy'], origins_catalog.policy(reviewed), path)
-        # Only reviewed https origins reach the header: an edited file is rejected whole.
+        # Only https origins by the rules reach the header: an edited file is rejected whole.
         origins = json.loads((release/'origins.json').read_text())
         origins['origins']['musicbrainz']['origin'] = "https://musicbrainz.org; script-src 'unsafe-inline'"
         (release/'origins.json').write_text(json.dumps(origins))

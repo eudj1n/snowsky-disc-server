@@ -31,7 +31,7 @@ for the apps and the card's catalog override.
 | `device/src/` | The gateway (`disc-service`) |
 | `device/vendor/` | Pinned CivetWeb, jsmn, miniz, Monocypher and SQLite sources with licenses |
 | `apps/catalog.json` | The apps the installer offers (the player page by its release address) |
-| `firmware/` | Reviewed profiles and catalogs: commands, queries, store, hosted, origins, OS facts, card layout |
+| `firmware/` | Reviewed profiles and catalogs: commands, queries, store, hosted, OS facts, card layout (an app's external origins are the app's own `origins.json`) |
 | `scripts/` | Builds, the package (`build_package.py`), tests, catalog tools, card tools (`app_bundle.py`, `card_move.py`), emulator orchestration |
 | `tests/conformance/` | Synthetic network, protocol, catalog and profile tests |
 | `tests/integration/` | Disposable V2.57 integration checks |

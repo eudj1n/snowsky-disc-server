@@ -616,16 +616,21 @@ statically (stock's shared 3.30.1 is a hard-float build; snowsky-disc-web's plan
 
 ## The page's external origins
 
-The page's files are served with `DISC_PAGE_POLICY` (same-origin, see the
-gateway contract) plus the origins of the active release's `origins.json`
-(combined-008), parsed once per file identity like `commands.json` and bound
-to the profile fingerprint: `connect-src 'self' <connect origins>` and, when
-any origin is for images, `img-src 'self' <image origins>`. At most 16
-origins of at most 100 characters each (the header stays under 2 KiB), each
-checked character by character (`device/src/origins.c`, the same rules as
-`scripts/origins_catalog.py`); one bad entry rejects the file, which is
-logged ("origins.json rejected") and leaves the page same-origin. The
-embedded fallback page and every API response keep their own policies.
+An app's files are served with `DISC_PAGE_POLICY` (same-origin, see the
+gateway contract) plus the origins of the app's own `origins.json` beside
+its `index.html` (combined-009; until combined-008 the image's file, bound
+to the profile fingerprint): `connect-src 'self' <connect origins>` and,
+when any origin is for images, `img-src 'self' <image origins>`. The file
+names no firmware profile (it may; a `profile_sha256` is not checked), so a
+provider comes and goes with the app's own release, never with the
+server's. At most 32 origins of at most 100 characters each (the header
+stays under 8 KiB), each checked character by character
+(`device/src/origins.c`, the same rules as `scripts/origins_catalog.py`,
+which checks an app's file before it is packed); one bad entry rejects the
+file, which is logged ("The origins.json of an app was rejected") and leaves
+the app same-origin. Scripts and styles stay `'self'` whatever the file
+says. The embedded fallback page and every API response keep their own
+policies.
 
 ## The store
 

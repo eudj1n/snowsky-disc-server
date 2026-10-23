@@ -1,10 +1,16 @@
-"""Reviewed external origins of the page (combined-008).
+"""The external origins an app names (combined-009; owner, 2026-10-23).
 
-Data selected by firmware version, published with every SD bundle as
-origins.json. The service adds these origins to the Content-Security-Policy
-of the page it serves (connect-src, img-src), so enrichment providers come
-and go with a card release. The rules here and in device/src/origins.c are
-the same, and strict, because the header is built from card data.
+An app on the card carries its own origins.json beside index.html: the
+https origins its page may connect to or load images from. The service adds
+them to the Content-Security-Policy of the pages it serves for that app, so
+a provider comes and goes with the app's own release, never with the
+server's. The rules here and in device/src/origins.c are the same, and
+strict, because the header is built from card data: one bad entry rejects
+the file, and the app stays same-origin.
+
+Until combined-008 the list was the server's (firmware/origins, bound to the
+firmware profile); that catalog is gone. This module keeps the rules, checks
+an app's file and tells the policy the service will build from it.
 """
 import hashlib
 import json
@@ -15,14 +21,16 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from scripts import firmware_profile
 
-CATALOGS = firmware_profile.PROFILES / 'origins'
 NAME = re.compile(r'[a-z][a-z0-9_]{1,40}\Z')
 LABEL = r'[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?'
 # https only; a wildcard only as the first label, with at least two labels after it; no path.
 ORIGIN = re.compile(rf'https://(?:\*\.)?{LABEL}(?:\.{LABEL})+(?::[0-9]{{1,5}})?\Z')
 DIRECTIVES = ('connect-src', 'img-src')
-MAX_ORIGINS = 16
+MAX_ORIGINS = 32
 MAX_ORIGIN = 100
+MAX_BYTES = 64 * 1024
+REQUIRED = {'schema_version', 'api', 'origins'}
+OPTIONAL = {'version', 'description', 'profile_sha256', 'origins_sha256'}
 
 
 def require(condition, message):
@@ -38,14 +46,11 @@ def valid_origin(origin):
     return (not host.startswith('*.') or host.count('.') >= 2) and (port is None or 1 <= int(port) <= 65535)
 
 
-def load_origins(version=None, directory=CATALOGS):
-    profile = firmware_profile.load_profile(version)
-    path = Path(directory) / f'v{profile["version"]}.json'
-    require(path.is_file(), 'Unknown firmware; add a reviewed origins catalog first')
-    catalog = json.loads(path.read_text())
-    require(isinstance(catalog, dict) and set(catalog) == {'schema_version', 'api', 'version', 'description', 'origins'}
-            and catalog['schema_version'] == 1 and catalog['api'] == 1 and catalog['version'] == profile['version'],
-            'Invalid origins catalog identity/schema')
+def check_origins(catalog):
+    """An app's origins.json as a dict, checked by the service's rules; returns it."""
+    require(isinstance(catalog, dict) and REQUIRED <= set(catalog) and set(catalog) <= REQUIRED | OPTIONAL,
+            'origins.json: schema_version, api and origins, optionally version, description and provenance')
+    require(catalog['schema_version'] == 1 and catalog['api'] == 1, 'origins.json: schema_version 1, api 1')
     origins = catalog['origins']
     require(isinstance(origins, dict) and len(origins) <= MAX_ORIGINS, f'At most {MAX_ORIGINS} origins')
     seen = set()
@@ -62,13 +67,22 @@ def load_origins(version=None, directory=CATALOGS):
     return catalog
 
 
+def load_origins(path):
+    """An app's origins.json from a file, checked."""
+    path = Path(path)
+    require(path.is_file() and path.stat().st_size <= MAX_BYTES, f'{path}: not an origins.json the service reads')
+    return check_origins(json.loads(path.read_text(encoding='utf-8')))
+
+
 def fingerprint(catalog):
     return hashlib.sha256(json.dumps(catalog, sort_keys=True, ensure_ascii=False, separators=(',', ':')).encode()).hexdigest()
 
 
-def origins_data(profile, catalog):
-    require(catalog['version'] == profile['version'], 'Origins catalog and firmware profile disagree')
-    published = dict(catalog, profile_sha256=firmware_profile.fingerprint(profile), origins_sha256=fingerprint(catalog))
+def origins_data(catalog, profile=None):
+    """The file as it goes beside index.html; with a firmware profile, bound to it (an image's file, combined-008)."""
+    published = dict(check_origins(catalog))
+    if profile is not None:
+        published.update(profile_sha256=firmware_profile.fingerprint(profile), origins_sha256=fingerprint(catalog))
     return (json.dumps(published, ensure_ascii=False, separators=(',', ':')) + '\n').encode()
 
 
@@ -82,5 +96,5 @@ def policy(catalog):
 
 
 if __name__ == '__main__':
-    catalog = load_origins(sys.argv[1] if len(sys.argv) > 1 else None)
-    print(json.dumps({'version': catalog['version'], 'policy': policy(catalog), 'origins_sha256': fingerprint(catalog)}, indent=2))
+    catalog = load_origins(sys.argv[1] if len(sys.argv) > 1 else 'origins.json')
+    print(json.dumps({'origins': len(catalog['origins']), 'policy': policy(catalog), 'origins_sha256': fingerprint(catalog)}, indent=2))

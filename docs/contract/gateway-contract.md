@@ -199,11 +199,14 @@ Every page and asset is served with
 `Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; frame-ancestors 'none'`
 and `X-Content-Type-Options: nosniff`. Inline scripts, inline styles and
 inline event handlers do not run; the publisher rejects them before a bundle
-is built. Since combined-008 the release's reviewed `origins.json` (from
-`firmware/origins/v<version>.json`, checked by `scripts/origins_catalog.py`)
-may add https origins to `connect-src` and an `img-src 'self' …` for the
-page's files, so enrichment providers (today MusicBrainz, Cover Art Archive
-with Internet Archive image hosts, LRCLIB) come and go with a card release.
+is built. An app's own `origins.json` beside its `index.html` (combined-009;
+checked by `scripts/origins_catalog.py` when the app is packed) may add
+https origins to `connect-src` and an `img-src 'self' …` for the app's
+files, so an app's providers (Disc Player's: MusicBrainz, Cover Art Archive
+with Internet Archive image hosts, LRCLIB, lrc.red, Wikimedia, fanart.tv,
+jsDelivr, ListenBrainz) come and go with the app's release, never with the
+server's. Until combined-008 the file was the image's, bound to the firmware
+profile; since 2026-10-23 the server keeps no catalog of origins.
 Each origin is `https://` with lower-case host labels, a wildcard only as the
 first label followed by at least two more, an optional port and nothing
 else; the service checks the same rules itself and ignores the whole file

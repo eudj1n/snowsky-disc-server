@@ -18,6 +18,11 @@ bundle = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(bundle)
 from scripts import command_catalog, firmware_profile, origins_catalog
 
+# An app's own origins.json, as it ships beside index.html (owner, 2026-10-23).
+ORIGINS = {'schema_version': 1, 'api': 1, 'origins': {
+    'musicbrainz': {'origin': 'https://musicbrainz.org', 'directives': ['connect-src'], 'purpose': 'metadata'},
+    'coverartarchive': {'origin': 'https://coverartarchive.org', 'directives': ['connect-src', 'img-src'], 'purpose': 'covers'}}}
+
 VITE_INDEX = ('<!doctype html><html><head><meta charset="utf-8">'
               '<script type="module" crossorigin src="./assets/index-Ab12Cd34.js"></script>'
               '<link rel="modulepreload" crossorigin href="./assets/vendor-Ef56Gh78.js">'
@@ -54,22 +59,42 @@ class AppBundleTests(unittest.TestCase):
                 bundle.build_app(source, 'Disc Player', '1', homepage=bad)
 
     def test_a_zip_holds_the_app_folder_with_twins_app_json_and_origins(self):
-        files = bundle.build_app(self.dist(), 'Disc Player', '2026.09.29', origins_catalog.load_origins())
+        files = bundle.build_app(self.dist(), 'Disc Player', '2026.09.29', ORIGINS)
         report = bundle.zip_app(files, 'Disc Player', self.root/'disc-player.zip')
         with zipfile.ZipFile(self.root/'disc-player.zip') as z:
             names = sorted(z.namelist())
             self.assertTrue(all(name.startswith('Disc Player/') for name in names))
             self.assertEqual(json.loads(z.read('Disc Player/app.json')), {'schema': 1, 'name': 'Disc Player', 'version': '2026.09.29'})
-            self.assertEqual(json.loads(z.read('Disc Player/origins.json'))['origins'], json.loads(
-                origins_catalog.origins_data(firmware_profile.load_profile(), origins_catalog.load_origins()))['origins'])
+            self.assertEqual(z.read('Disc Player/origins.json'), origins_catalog.origins_data(ORIGINS))
             # The large script gets a twin; small files do not; nothing of the catalogs.
             self.assertEqual(gzip.decompress(z.read('Disc Player/assets/vendor-Ef56Gh78.js.gz')), b'export const v=1;' * 200)
             self.assertNotIn('Disc Player/assets/index-Ij90Kl12.css.gz', names)
             self.assertFalse(any(name.endswith(bundle.CATALOGS) for name in names))
         # The same build makes the same zip.
-        again = bundle.zip_app(bundle.build_app(self.dist('dist2'), 'Disc Player', '2026.09.29', origins_catalog.load_origins()),
+        again = bundle.zip_app(bundle.build_app(self.dist('dist2'), 'Disc Player', '2026.09.29', ORIGINS),
                                'Disc Player', self.root/'again.zip')
         self.assertEqual(report['sha256'], again['sha256'])
+
+    def test_an_apps_own_origins_json_is_kept_as_it_is_and_checked(self):
+        # The app's file beside index.html goes as it is (owner, 2026-10-23); one the service would reject is refused.
+        source = self.dist()
+        own = (json.dumps(dict(ORIGINS, description='Disc Player\'s providers'), indent=2) + '\n').encode()
+        (source/'origins.json').write_bytes(own)
+        files = bundle.build_app(source, 'Disc Player', '1')
+        self.assertEqual(files['origins.json'], own)
+        self.assertNotIn('origins.json', bundle.build_app(self.dist('dist2'), 'Disc Player', '1'))
+        (source/'origins.json').write_text(json.dumps(dict(ORIGINS, origins={'bad': {
+            'origin': 'https://a.org; script-src *', 'directives': ['connect-src'], 'purpose': 'x'}})))
+        with self.assertRaisesRegex(ValueError, 'https origin'):
+            bundle.build_app(source, 'Disc Player', '1')
+        # Another file packed in its place, through the command line.
+        (self.root/'other.json').write_bytes(origins_catalog.origins_data(ORIGINS))
+        zipped = subprocess.run([sys.executable, str(ROOT/'scripts'/'app_bundle.py'), 'zip', '--source', str(self.dist('dist3')),
+                                 '--output', str(self.root/'o.zip'), '--version', '1', '--origins', str(self.root/'other.json')],
+                                capture_output=True, text=True, check=True)
+        self.assertEqual(json.loads(zipped.stdout)['app'], 'Disc Player')
+        with zipfile.ZipFile(self.root/'o.zip') as z:
+            self.assertEqual(z.read('Disc Player/origins.json'), origins_catalog.origins_data(ORIGINS))
 
     def test_install_replaces_the_app_folder_whole_and_keeps_the_card_on_failure(self):
         card = self.root/'card'
@@ -146,8 +171,8 @@ class AppBundleTests(unittest.TestCase):
         card = self.root/'card'
         card.mkdir()
         command = [sys.executable, str(ROOT/'scripts'/'app_bundle.py')]
-        zipped = subprocess.run(command + ['zip', '--source', str(self.dist()), '--output', str(self.root/'a.zip'), '--version', '1',
-                                           '--origins'], capture_output=True, text=True, check=True)
+        zipped = subprocess.run(command + ['zip', '--source', str(self.dist()), '--output', str(self.root/'a.zip'), '--version', '1'],
+                                capture_output=True, text=True, check=True)
         self.assertEqual(json.loads(zipped.stdout)['app'], 'Disc Player')
         refused = subprocess.run(command + ['install', '--app', str(self.root/'a.zip'), '--card', str(card)],
                                  capture_output=True, text=True)
