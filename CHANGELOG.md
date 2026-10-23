@@ -7,6 +7,12 @@ on the [releases page](https://github.com/eudj1n/snowsky-disc-server/releases).
 Entries stay short; why is in the developer documents (`docs/`), how in the
 commits.
 
+## [Unreleased]
+
+- Card only: the page may reach `api.listenbrainz.org` and
+  `labs.api.listenbrainz.org` for similar artists and popularity by
+  MusicBrainz id once you allow that source; only ids are sent.
+
 ## [2.57.10] — 2026-10-21
 
 - Card only: the server offers Disc Player 1.1.0 by default (AutoEq's
