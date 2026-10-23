@@ -99,6 +99,20 @@
         "connect-src"
       ],
       "purpose": "Lyrics with word timings (lrc.red): a search by the track's artist and title, and a result's LRC file, read as text once the owner allowed the source."
+    },
+    "listenbrainz_api": {
+      "origin": "https://api.listenbrainz.org",
+      "directives": [
+        "connect-src"
+      ],
+      "purpose": "ListenBrainz's popularity by MusicBrainz id (an artist's most listened recordings and release groups), read as JSON once the owner allowed the source; only ids are sent."
+    },
+    "listenbrainz_labs": {
+      "origin": "https://labs.api.listenbrainz.org",
+      "directives": [
+        "connect-src"
+      ],
+      "purpose": "ListenBrainz Labs' similarity by MusicBrainz id (similar artists and recordings), read as JSON once the owner allowed the source; only ids are sent."
     }
   }
 }
