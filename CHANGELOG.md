@@ -9,6 +9,10 @@ commits.
 
 ## [Unreleased]
 
+- Card only: the store's `auto_playlists` catalog admits the page's My wave
+  list (`kind` `my_wave`): the neighbours of what you played lately, by
+  ListenBrainz's similarity and the listeners' genres. The card's
+  `.disc/catalog/store.json` override takes it before a release does.
 - An app on the card names the outside hosts its page may reach in its own
   `origins.json`, as it has since combined-009; the server keeps no list of
   them any more, so a new provider of Disc Player needs no server release.

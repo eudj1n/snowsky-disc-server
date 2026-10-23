@@ -874,6 +874,8 @@ class GatewayTests(unittest.TestCase):
         for bad in ({'written': '30.09.2026'}, {'period': 'hour'}):
             record = {'name': 'Daily mix', 'kind': 'daily_mix', 'at': 1, **bad}
             self.assertEqual(self.store('PUT', '/auto_playlists/record', record)[0], 400, bad)
+        # The page's wave (owner, 2026-10-23) is a kind of its own.
+        self.assertEqual(self.store('PUT', '/auto_playlists/record', {'name': 'My wave', 'kind': 'my_wave', 'at': 1})[0], 200)
         # Outside sources the owner allowed: booleans and a key of plain characters only.
         status, doc = self.store('PUT', '/external_sources/record', {'source': 'fanarttv', 'allowed': True, 'auto': False,
                                                                       'api_key': 'a1b2c3d4e5f6', 'at': 1790000500})
