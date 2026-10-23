@@ -401,18 +401,20 @@ static int sync_indexes(sqlite3 *db, const disc_store *store) {
     return 0;
 }
 
-static long long count_rows(sqlite3 *db, const char *collection, const char *filter_field, const disc_store_field *f, const slot *filter) {
-    char sql[160];
+/* since < 0: every record; else those updated after that moment (the page's delta reads, owner, 2026-10-23). */
+static long long count_rows(sqlite3 *db, const char *collection, const char *filter_field, const disc_store_field *f, const slot *filter, long long since) {
+    char sql[200];
     sqlite3_stmt *stmt = NULL;
     long long n = -1;
-    snprintf(sql, sizeof(sql), "SELECT count(*) FROM records WHERE collection = ?%s%s%s",
-             filter_field ? " AND value ->> '$." : "", filter_field ? filter_field : "", filter_field ? "' = ?" : "");
+    snprintf(sql, sizeof(sql), "SELECT count(*) FROM records WHERE collection = ?1%s%s%s AND updated_at > ?3",
+             filter_field ? " AND value ->> '$." : "", filter_field ? filter_field : "", filter_field ? "' = ?2" : "");
     if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) == SQLITE_OK) {
         sqlite3_bind_text(stmt, 1, collection, -1, SQLITE_STATIC);
         if (filter_field) {
             if (f->type == DISC_FIELD_INT || f->type == DISC_FIELD_BOOL) sqlite3_bind_int64(stmt, 2, filter->number);
             else sqlite3_bind_text(stmt, 2, filter->text, (int)filter->length, SQLITE_STATIC);
         }
+        sqlite3_bind_int64(stmt, 3, since);
         if (sqlite3_step(stmt) == SQLITE_ROW) n = sqlite3_column_int64(stmt, 0);
     }
     sqlite3_finalize(stmt);
@@ -467,17 +469,19 @@ static void begin_reply(context *x) {
 }
 
 static int op_list(context *x, sqlite3 *db, const params *p) {
-    static const char *const allowed[] = {"limit", "offset", "order", "desc", "field", "value"};
+    static const char *const allowed[] = {"limit", "offset", "order", "desc", "field", "value", "since"};
     for (size_t i = 0; i < p->count; i++) {
         int known = 0;
-        for (size_t k = 0; k < 6; k++) if (!strcmp(p->items[i].name, allowed[k])) known = 1;
+        for (size_t k = 0; k < 7; k++) if (!strcmp(p->items[i].name, allowed[k])) known = 1;
         if (!known) { x->problem = "unknown parameter"; return 400; }
     }
-    long long limit = DEFAULT_LIST, offset = 0;
+    long long limit = DEFAULT_LIST, offset = 0, since = -1;
     const char *text;
     char *end;
     if ((text = param_value(p, "limit")) && ((limit = strtoll(text, &end, 10)) < 1 || limit > MAX_LIST || *end || !*text)) { x->problem = "limit is 1..500"; return 400; }
     if ((text = param_value(p, "offset")) && ((offset = strtoll(text, &end, 10)) < 0 || offset > 1000000 || *end || !*text)) { x->problem = "offset is 0..1000000"; return 400; }
+    /* since: records updated after that moment (seconds), for a page that holds the rest (owner, 2026-10-23). */
+    if ((text = param_value(p, "since")) && ((since = strtoll(text, &end, 10)) < 0 || since > 4102444800LL || *end || !*text)) { x->problem = "since is 0..4102444800"; return 400; }
     const char *desc = param_value(p, "desc");
     if (desc && strcmp(desc, "0") && strcmp(desc, "1")) { x->problem = "desc is 0 or 1"; return 400; }
     const char *direction = desc && !strcmp(desc, "1") ? "DESC" : "ASC";
@@ -498,7 +502,7 @@ static int op_list(context *x, sqlite3 *db, const params *p) {
         if (f < 0) { x->problem = "unknown field"; return 400; }
         if ((x->problem = text_slot(&x->c->fields[f], x->r->music_root, value, &filter))) { free_slots(&filter, 1); return 400; }
     }
-    long long total = db ? count_rows(db, x->c->name, field, f >= 0 ? &x->c->fields[f] : NULL, &filter) : 0;
+    long long total = db ? count_rows(db, x->c->name, field, f >= 0 ? &x->c->fields[f] : NULL, &filter, since) : 0;
     if (total < 0) { free_slots(&filter, 1); return 503; }
     begin_reply(x);
     disc_buffer_text(x->out, ",\"records\":[");
@@ -506,7 +510,7 @@ static int op_list(context *x, sqlite3 *db, const params *p) {
     int truncated = 0;
     if (db && total > offset) {
         char sql[320];
-        snprintf(sql, sizeof(sql), "SELECT key, value, updated_at FROM records WHERE collection = ?1%s%s%s ORDER BY %s LIMIT ?3 OFFSET ?4",
+        snprintf(sql, sizeof(sql), "SELECT key, value, updated_at FROM records WHERE collection = ?1%s%s%s AND updated_at > ?5 ORDER BY %s LIMIT ?3 OFFSET ?4",
                  field ? " AND value ->> '$." : "", field ? field : "", field ? "' = ?2" : "", order_by);
         sqlite3_stmt *stmt = NULL;
         if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) { free_slots(&filter, 1); return 503; }
@@ -517,6 +521,7 @@ static int op_list(context *x, sqlite3 *db, const params *p) {
         }
         sqlite3_bind_int64(stmt, 3, limit);
         sqlite3_bind_int64(stmt, 4, offset);
+        sqlite3_bind_int64(stmt, 5, since);
         int rc;
         while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
             if (!row_valid(stmt, 0)) continue;
@@ -557,7 +562,7 @@ static int op_count(context *x, sqlite3 *db, const params *p) {
         if (f < 0) { x->problem = "unknown field"; return 400; }
         if ((x->problem = text_slot(&x->c->fields[f], x->r->music_root, value, &filter))) { free_slots(&filter, 1); return 400; }
     }
-    long long n = db ? count_rows(db, x->c->name, field, f >= 0 ? &x->c->fields[f] : NULL, &filter) : 0;
+    long long n = db ? count_rows(db, x->c->name, field, f >= 0 ? &x->c->fields[f] : NULL, &filter, -1) : 0;
     free_slots(&filter, 1);
     if (n < 0) return 503;
     begin_reply(x);
@@ -676,7 +681,7 @@ static int apply(context *x, sqlite3 *db, change *changes, size_t n, long long *
         else if (!existed) (*created)++;
     }
     if (status == 200) {
-        long long total = count_rows(db, x->c->name, NULL, NULL, NULL);
+        long long total = count_rows(db, x->c->name, NULL, NULL, NULL, -1);
         if (total < 0) status = 503;
         else if (total > x->c->max_records) { status = 409; x->problem = "the collection is full"; }
     }
@@ -775,7 +780,7 @@ static int summary(const disc_store *store, sqlite3 *db, disc_buffer *out) {
     disc_buffer_text(out, "{\"collections\":{");
     for (size_t i = 0; i < store->count; i++) {
         const disc_collection *c = &store->collections[i];
-        long long n = db ? count_rows(db, c->name, NULL, NULL, NULL) : 0;
+        long long n = db ? count_rows(db, c->name, NULL, NULL, NULL, -1) : 0;
         if (n < 0) return 503;
         if (i) disc_buffer_text(out, ",");
         disc_buffer_string(out, c->name, strlen(c->name));

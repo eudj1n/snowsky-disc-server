@@ -9,6 +9,9 @@ commits.
 
 ## [Unreleased]
 
+- The store lists a collection's records updated after a moment
+  (`records?since=<seconds>`), so the page reads only what changed since
+  it last looked.
 - Card only: the store's `auto_playlists` catalog admits the page's My wave
   list (`kind` `my_wave`): the neighbours of what you played lately, by
   ListenBrainz's similarity and the listeners' genres. The card's
