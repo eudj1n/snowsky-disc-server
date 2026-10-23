@@ -656,8 +656,8 @@ as sent, neither key nor filter). The first collection is `disliked`: key
 records of 2 KiB, `skip`. `auto_playlists` (2026-09-30, a card release) names
 the page's automatic playlists among the external M3U lists: key `name` (the
 list's name, at most 96 bytes), `kind` (one of `most_played`,
-`artist_most_played`, `recently_added`, `not_played_lately`, `daily_mix`, a
-pattern),
+`artist_most_played`, `recently_added`, `not_played_lately`, `daily_mix`,
+`my_wave` since 2026-10-23, a pattern),
 `artist` for an artist's list, `written` (the browser's local day it was last
 written, `YYYY-MM-DD`), `period` (`day`, `week` or `month`: how long a list
 stays as written), `at`; 200 records, as many as lists. `external_sources`

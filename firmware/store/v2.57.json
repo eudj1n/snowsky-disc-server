@@ -98,7 +98,7 @@
       "max_record_bytes": 2048
     },
     "auto_playlists": {
-      "description": "Automatic playlists the page keeps as M3U lists in the visible Playlists folder (combined-009 external lists), so every browser knows which lists are the page's to rewrite and never touches the owner's own. The key is the list name (its file name without .m3u), fixed when the list is made; an artist list names its artist. A list is drawn again once its period (a day, a week or a month) has passed since the day it was last written (the browser's local date).",
+      "description": "Automatic playlists the page keeps as M3U lists in the visible Playlists folder (combined-009 external lists), so every browser knows which lists are the page's to rewrite and never touches the owner's own. The key is the list name (its file name without .m3u), fixed when the list is made; an artist list names its artist. A list is drawn again once its period (a day, a week or a month) has passed since the day it was last written (the browser's local date). 'my_wave' (owner, 2026-10-23) is the page's wave: the neighbours of what was played lately, by ListenBrainz's similarity and the listeners' genres.",
       "key": [
         "name"
       ],
@@ -111,7 +111,7 @@
         "kind": {
           "type": "text",
           "max_length": 32,
-          "pattern": "^(most_played|artist_most_played|recently_added|not_played_lately|daily_mix)$",
+          "pattern": "^(most_played|artist_most_played|recently_added|not_played_lately|daily_mix|my_wave)$",
           "required": true
         },
         "artist": {
