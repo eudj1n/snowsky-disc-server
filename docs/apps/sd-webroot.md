@@ -89,13 +89,40 @@ must satisfy, and the service's policy enforces at run time:
 - Names a FAT card keeps (no case collisions), at most 512 files and 32 MiB.
 
 `python3 scripts/app_bundle.py zip --source dist --output <app>.zip
---name "<App>" --version <version> [--homepage <https address>] [--origins]`
-packs a checked build as `<App>/` with gzip twins of its text files,
-`app.json` (`{"schema":1,"name","version","homepage"}`, the homepage only when
-given: a plain https address of at most 200 bytes, no query or fragment, the
-rule of snowsky-disc-boot's `package.json`; the manager links it) and, with
-`--origins`, Disc Player's reviewed `origins.json` (from
-`firmware/origins/`). The same build gives the same zip.
+--name "<App>" --version <version> [--homepage <https address>]
+[--origins <origins.json>]` packs a checked build as `<App>/` with gzip twins
+of its text files, `app.json` (`{"schema":1,"name","version","homepage"}`, the
+homepage only when given: a plain https address of at most 200 bytes, no
+query or fragment, the rule of snowsky-disc-boot's `package.json`; the manager
+links it) and the app's own `origins.json`. The same build gives the same zip.
+
+An app declares the outside hosts its page talks to itself, in `origins.json`
+beside `index.html` (owner, 2026-10-23; the server keeps no list of them):
+
+```json
+{
+  "schema_version": 1,
+  "api": 1,
+  "origins": {
+    "musicbrainz": {
+      "origin": "https://musicbrainz.org",
+      "directives": ["connect-src"],
+      "purpose": "Release and recording metadata."
+    }
+  }
+}
+```
+
+Up to 32 entries (16 on servers before the release that raised it), each a
+name of `[a-z][a-z0-9_]{1,40}`, an exact `https://` origin of at most 100
+characters (lower-case host labels, a wildcard only as the first label with
+at least two after it, an optional port, no path), `directives` among
+`connect-src` and `img-src`, and a `purpose` a reader understands. The
+service adds them to that app's Content-Security-Policy; scripts and styles
+stay `'self'` whatever the file says. One bad entry rejects the file whole
+and the app stays same-origin, so `python3 scripts/origins_catalog.py
+<origins.json>` checks a file and prints the policy it gives; `zip` checks
+the app's file too, and `--origins <file>` packs another in its place.
 
 ## Installing
 

@@ -9,9 +9,10 @@ commits.
 
 ## [Unreleased]
 
-- Card only: the page may reach `api.listenbrainz.org` and
-  `labs.api.listenbrainz.org` for similar artists and popularity by
-  MusicBrainz id once you allow that source; only ids are sent.
+- An app on the card names the outside hosts its page may reach in its own
+  `origins.json`, as it has since combined-009; the server keeps no list of
+  them any more, so a new provider of Disc Player needs no server release.
+  The gateway now takes up to 32 origins in an app's file (16 before).
 
 ## [2.57.10] — 2026-10-21
 

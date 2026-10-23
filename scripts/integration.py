@@ -59,7 +59,7 @@ if not (card/'Apps'/'Disc Player'/'index.html').is_file():
     source.mkdir()
     (source/'index.html').write_text('<!doctype html><meta charset="utf-8"><title>Test app</title><p>Test app</p>\\n')
     subprocess.run(['python3', '/platform/scripts/app_bundle.py', 'zip', '--source', str(source), '--output', str(out),
-                    '--version', 'test', '--homepage', 'https://github.com/eudj1n/snowsky-disc-server', '--origins'],
+                    '--version', 'test', '--homepage', 'https://github.com/eudj1n/snowsky-disc-server'],
                    check=True, stdout=subprocess.DEVNULL)
     subprocess.run(['python3', '/platform/scripts/app_bundle.py', 'install', '--app', str(out), '--card', str(card),
                     '--confirm-card-write'], check=True, stdout=subprocess.DEVNULL)
