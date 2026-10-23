@@ -953,6 +953,15 @@ class GatewayTests(unittest.TestCase):
         self.assertEqual(([r['value']['at'] for r in doc['records']], doc['truncated']), ([1790000200], False))
         doc = self.store('GET', '/disliked/records?field=artist&value=Lumen')[1]
         self.assertEqual([r['key'] for r in doc['records']], [[track, None]])
+        # since: the records updated after a moment, their count as the total (the page's delta reads, 2026-10-23).
+        newest = max(r['updated'] for r in self.store('GET', '/disliked/records')[1]['records'])
+        self.assertEqual(self.store('GET', '/disliked/records?since=%d' % newest)[1]['total'], 0)
+        doc = self.store('GET', '/disliked/records?since=%d' % (newest - 1))[1]
+        self.assertEqual(doc['total'], len(doc['records']))
+        self.assertTrue(all(r['updated'] > newest - 1 for r in doc['records']))
+        self.assertEqual(self.store('GET', '/disliked/records?since=0')[1]['total'], 3)
+        self.assertEqual(self.store('GET', '/disliked/records?since=-1')[0], 400)
+        self.assertEqual(self.store('GET', '/disliked/records?since=x')[0], 400)
         self.assertEqual(self.store('GET', '/disliked/count?field=path&value=' + quote(track))[1], {'collection': 'disliked', 'count': 2})
         self.assertEqual(self.store('GET', '/disliked/count')[1]['count'], 3)
         self.assertEqual(self.store('GET', '')[1]['collections']['disliked']['records'], 3)

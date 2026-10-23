@@ -705,10 +705,12 @@ JSON array of the key fields in key order, absent ones `null`). Operations,
 the same for every collection:
 
 - `GET /api/store` → `{"collections":{"<name>":{"records","max_records","skip"}}}`.
-- `GET /api/store/<c>/records?limit=1..500 (100)&offset=&order=<field>|updated&desc=0|1&field=<scalar field>&value=`
+- `GET /api/store/<c>/records?limit=1..500 (100)&offset=&order=<field>|updated&desc=0|1&field=<scalar field>&value=&since=<seconds>`
   → `{"collection","records":[{"key","value","updated"}],"total","offset","truncated"}`;
   insertion order by default, at most 1 MiB, rows edited elsewhere into
-  anything but strict JSON are left out.
+  anything but strict JSON are left out. `since` (2026-10-23) keeps the
+  records updated after that moment, `total` counting them too, so a page
+  holding the rest reads the changes alone; a removal shows in the count.
 - `GET /api/store/<c>/count[?field=&value=]` → `{"collection","count"}`.
 - `GET /api/store/<c>/record?<key fields>` → `{"collection","record":{…}}` or 404.
 - `PUT /api/store/<c>/record` with the record as the body →
